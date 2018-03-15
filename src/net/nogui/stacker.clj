@@ -42,12 +42,10 @@
     (if (cond t) t else)))
 
 
-(defn benchmark []
-  (let [s (range 10000)]
-    ()))
-
-
 ;; All stacker functions take a stack and an env and return a stack and an env
+(defn sf-drop [s env]
+  [(if (first s) (pop s) s) env])
+
 (def default-env
   (atom
   {"." (fn [s env]
@@ -59,14 +57,17 @@
    "/"      (func2 /)
    "p" (fn [s env]
          (println (peek s))
-         [s env])
+         (sf-drop s env))
    "clear"  (fn [s env] [() env])
-   "drop"   (fn [s env] [(pop s) env])
+   "drop"   sf-drop
    "dup"    (fn [s env] [(conj s (peek s)) env])
    "env"    (fn [s env] (println (sort (keys env)))
               [s env])
    "q"      (fn [s env] (System/exit (top-if s number? 0)))
-   "swap"   (fn [s env] (let [[a b & r] s] (conj (conj r a) b)))}))
+   "swap"   (fn [s env] (let [[a b & r] s]
+                         (if (> (count s) 2)
+                           [(conj (conj r a) b) env]
+                           [s env])))}))
 
 (defn make-line-reader []
   (let [cr (ConsoleReader.)]
@@ -87,7 +88,9 @@
     word = #'[^0-9\\s\"][^\\s]*'
 "))
 
-(defn apply-tokens [[stack env] tokens]
+(defn apply-tokens
+  "Applies the tokens on the [stack env] and returns a new [stack env] when done"
+  [[stack env] tokens]
   ;(pp/pprint tokens)
   ;(pp/pprint stack)
   (if (empty? tokens)
@@ -108,7 +111,9 @@
 
 ;(pp/pprint (parser "dup 3.4 3.4 3.4 dip \"hwody bowdy\" and"))
 
-(defn string-to-tokens [s env lr]
+(defn string-to-tokens
+  "Parses the string s into tokens."
+  [s env lr]
   (let [p (parser s)]
     ;(pp/pprint p)
     (when-let [tokens (rest p)]
@@ -116,24 +121,24 @@
       tokens)))
 
 
-(defn repl [start-words]
+(defn repl [start-stack env start-words]
   (let [lr (make-line-reader)
-        env @default-env
+        ;; env @default-env
         start-tokens (string-to-tokens (str/join " " start-words) env lr)
-        initial (apply-tokens [() env] start-tokens)]
+        initial (apply-tokens [start-stack env] start-tokens)]
     (loop [[stack env] initial]
       (print-stack stack)
       (let [r (.readLine lr prompt)
-            e (string-to-tokens r env lr)]
-        (if (or (not e) (= r "bye"))
-          stack
-          (recur (apply-tokens [stack env] e)))))))
+            tokens (string-to-tokens r env lr)]
+        (if (or (not tokens) (= r "bye"))
+          [stack env] ;; return the stack and current env
+          (recur (apply-tokens [stack env] tokens)))))))
 
 
 (defn -main [& args]
-  (when (not (nil? args))
+  #_(when (not (nil? args))
     (println "args: " args))
-  (let [s (repl args)
+  (let [[s env] (repl () @default-env args)
         top (first s)]
     (when (number? top)
       (System/exit top))))
