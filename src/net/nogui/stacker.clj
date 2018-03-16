@@ -2,6 +2,7 @@
   ^{:doc "Stacker - stack based repl interface -- similar to Forth/Factor"
     :author "Jörg Ramb, 2017"}
   net.nogui.stacker
+  (:gen-class :main true)
   (:require [clojure.string :as str]
             [instaparse.core :as instaparse]
             [clojure.pprint :as pp])

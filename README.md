@@ -7,6 +7,8 @@ A Clojure library designed to implement a stack based REPL and execution engine.
 ### Simple repl
 Run `lein run` to start a quite simple repl.
 
+[![Clojars Project](https://img.shields.io/clojars/v/net.nogui/stacker.svg)](https://clojars.org/net.nogui/stacker)
+
 Run with parameters (one or many) to start repl and process the commands from the parameter.
 
 Example:
