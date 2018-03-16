@@ -4,10 +4,14 @@ A Clojure library designed to implement a stack based REPL and execution engine.
 
 ## Usage
 
+Either run this project on its own (see below, "Simple repl") or
+include in your own `project.clj`:
+
+[![Clojars Project](https://img.shields.io/clojars/v/net.nogui/stacker.svg)](https://clojars.org/net.nogui/stacker)
+
 ### Simple repl
 Run `lein run` to start a quite simple repl.
 
-[![Clojars Project](https://img.shields.io/clojars/v/net.nogui/stacker.svg)](https://clojars.org/net.nogui/stacker)
 
 Run with parameters (one or many) to start repl and process the commands from the parameter.
 

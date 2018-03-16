@@ -5,6 +5,13 @@ engine.
 
 ** Usage
 
+*** Use in your own programs
+
+Either run this project on its own (see below, "Simple repl") or include
+in your own =project.clj=:
+
+[[https://clojars.org/net.nogui/stacker][[[https://img.shields.io/clojars/v/net.nogui/stacker.svg]]]]
+
 *** Simple repl
     :PROPERTIES:
     :CUSTOM_ID: simple-repl
