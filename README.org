@@ -1,15 +1,9 @@
 * stacker
-  :PROPERTIES:
-  :CUSTOM_ID: stacker
-  :END:
 
 A Clojure library designed to implement a stack based REPL and execution
 engine.
 
 ** Usage
-   :PROPERTIES:
-   :CUSTOM_ID: usage
-   :END:
 
 *** Simple repl
     :PROPERTIES:
@@ -45,19 +39,16 @@ out, the repl continues.
 You can extend the environment with your own commands and thus give your
 own tools a convenient REPL:
 
-1) extend the @default-env with your own functions (probably)
-2) start with a (probably) empty stack, a simple empty list =()=
-3) Repeat until tired: Apply tokens on the [stack env] pair. You can use
-   =string-to-tokens= to convert a string to a list of tokens.
-4) Alternatively you can call the provided =repl= on the start-stack and
-   env, which starts an interactive repl for you.
+  1. extend the @default-env with your own functions (probably)
+  2. start with a (probably) empty stack, a simple empty list =()=
+  3. Repeat until tired: Apply tokens on the [stack env] pair. You can use
+     =string-to-tokens= to convert a string to a list of tokens.
+  4. Alternatively you can call the provided =repl= on the start-stack and
+     env, which starts an interactive repl for you.
 
 ** License
-   :PROPERTIES:
-   :CUSTOM_ID: license
-   :END:
 
-Copyright © 2017 Jörg Ramb
+Copyright © 2017-2018 Jörg Ramb
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.

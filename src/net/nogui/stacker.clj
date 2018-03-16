@@ -48,26 +48,26 @@
 
 (def default-env
   (atom
-  {"." (fn [s env]
-         (println (peek s))
-         [(pop s) env])
-   "+"      (func2 +)
-   "-"      (func2 -)
-   "*"      (func2 *)
-   "/"      (func2 /)
-   "p" (fn [s env]
-         (println (peek s))
-         (sf-drop s env))
-   "clear"  (fn [s env] [() env])
-   "drop"   sf-drop
-   "dup"    (fn [s env] [(conj s (peek s)) env])
-   "env"    (fn [s env] (println (sort (keys env)))
-              [s env])
-   "q"      (fn [s env] (System/exit (top-if s number? 0)))
-   "swap"   (fn [s env] (let [[a b & r] s]
-                         (if (> (count s) 2)
-                           [(conj (conj r a) b) env]
-                           [s env])))}))
+   {"." {:fn (fn [s env]
+               (println (peek s))
+               [(pop s) env])}
+    "+" {:fn (func2 +)}
+    "-" {:fn (func2 -)}
+    "*" {:fn (func2 *)}
+    "/" {:fn (func2 /)}
+    "p" {:fn (fn [s env]
+               (println (peek s))
+               (sf-drop s env))}
+    "clear" {:fn (fn [s env] [() env])}
+    "drop"  {:fn sf-drop}
+    "dup"   {:fn (fn [s env] [(conj s (peek s)) env])}
+    "env"   {:fn (fn [s env] (println (sort (keys env)))
+                   [s env])}
+    "q"     {:fn (fn [s env] (System/exit (top-if s number? 0)))}
+    "swap"  {:fn (fn [s env] (let [[a b & r] s]
+                              (if (>= (count s) 2)
+                                [(conj (conj r a) b) env]
+                                [s env])))}}))
 
 (defn make-line-reader []
   (let [cr (ConsoleReader.)]
@@ -88,6 +88,8 @@
     word = #'[^0-9\\s\"][^\\s]*'
 "))
 
+;; (parser "A hej \"hej\" [ ]");
+;; (pp/pprint (parser "dup 3.4 3.4 3.4 dip \"hwody bowdy\" and"));
 (defn apply-tokens
   "Applies the tokens on the [stack env] and returns a new [stack env] when done"
   [[stack env] tokens]
@@ -99,7 +101,7 @@
           remaining     (rest tokens)]
       ;(println "kind " kind " value " value " type" (type value))
       (condp = kind
-        :word (let [f (get env value)]
+        :word (let [f (:fn (get env value))]
                 (if (nil? f)
                   (do
                     (println "*** Word not defined:" value "(Aborting execution)")
@@ -109,7 +111,7 @@
                (recur [(conj stack v) env] remaining))
         :str (recur [(conj stack value) env] remaining)))))
 
-;(pp/pprint (parser "dup 3.4 3.4 3.4 dip \"hwody bowdy\" and"))
+                                        ;
 
 (defn string-to-tokens
   "Parses the string s into tokens."
