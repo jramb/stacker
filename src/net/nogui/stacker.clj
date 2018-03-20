@@ -59,8 +59,18 @@
     "p" {:fn (fn [s env]
                (println (peek s))
                (sf-drop s env))}
-    "clear" {:fn (fn [s env] [() env])}
+    "get" {:fn (fn [s env]
+                 (let [[s id] (spop s)]
+                   [(conj s (get env id)) env]))}
+    "put" {:fn (fn [s env]
+                 (let [[s id] (spop s)
+                       [s v] (spop s)]
+                   [s (assoc env id v)]))}
     "drop"  {:fn sf-drop}
+    "peek"  {:fn (fn [s env]
+                   (let [v (first s)]
+                     (println v "=" (type v)))
+                   [s env])}
     "dup"   {:fn (fn [s env] [(conj s (peek s)) env])}
     "env"   {:fn (fn [s env] (println (sort (keys env)))
                    [s env])}
@@ -82,10 +92,12 @@
 
 (def parser
   (instaparse/parser
-   "S = (blank|word|str|num)*
+   "S = (blank|word|str|keyword|num|quotation)*
     <blank> = <#'\\s+'>
+    quotation = <'['> S <']'>
     num = #'-?[0-9]+\\.?[0-9]*'
     str = <'\"'> #'[^\"]*' <'\"'>
+    keyword = <':'> #'[^ ]*'
     word = #'[^0-9\\s\"][^\\s]*'
 "))
 
@@ -94,7 +106,7 @@
 (defn apply-tokens
   "Applies the tokens on the [stack env] and returns a new [stack env] when done"
   [[stack env] tokens]
-  ;(pp/pprint tokens)
+  (pp/pprint tokens)
   ;(pp/pprint stack)
   (if (empty? tokens)
     [stack env]
@@ -108,8 +120,11 @@
                     (println "*** Word not defined:" value "(Aborting execution)")
                     [stack env])
                   (recur (f stack env) remaining)))
+        :quotation (let [[_ v] value]
+                     (recur [(conj stack {:q (second value)}) env] remaining))
         :num (let [v (read-string value)]
                (recur [(conj stack v) env] remaining))
+        :keyword (recur [(conj stack (keyword value)) env] remaining)
         :str (recur [(conj stack value) env] remaining)))))
 
                                         ;
