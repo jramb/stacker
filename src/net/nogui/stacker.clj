@@ -47,6 +47,49 @@
 (defn sf-drop [s env]
   [(if (first s) (pop s) s) env])
 
+(defn print-stack [stack]
+  (println "S:" (str/join " " (reverse stack))))
+
+(defn print-env [env]
+  (println "E:" (sort (map str (keys env)))))
+
+(def parser
+  (instaparse/parser
+   "S = (blank|word|str|keyword|num|quotation)*
+    <blank> = <#'\\s+'>
+    quotation = <'['> S <']'>
+    num = #'-?[0-9]+\\.?[0-9]*'
+    str = <'\"'> #'[^\"]*' <'\"'>
+    keyword = <':'> #'[^ ]*'
+    word = #'[^0-9\\s\"][^\\s]*'
+"))
+
+;; (parser "A hej \"hej\" [ ]");
+;; (pp/pprint (parser "dup 3.4 3.4 3.4 dip \"hwody bowdy\" and"));
+(defn apply-tokens
+  "Applies the tokens on the [stack env] and returns a new [stack env] when done"
+  [[stack env] tokens]
+  ;; (pp/pprint tokens)
+  ;(pp/pprint stack)
+  (if (empty? tokens)
+    [stack env] ;; return what is left
+    (let [[kind value]  (first tokens)
+          remaining     (rest tokens)]
+      ;(println "kind " kind " value " value " type" (type value))
+      (condp = kind
+        :word (let [f (:fn (get env value))]
+                (if (nil? f)
+                  (do
+                    (println "*** Word not defined:" value "(Aborting execution)")
+                    [stack env])
+                  (recur (f stack env) remaining)))
+        :quotation (let [[_ v] value]
+                     (recur [(conj stack {:quotation (rest value)}) env] remaining))
+        :num (let [v (read-string value)]
+               (recur [(conj stack v) env] remaining))
+        :keyword (recur [(conj stack (keyword value)) env] remaining)
+        :str (recur [(conj stack value) env] remaining)))))
+
 (def default-env
   (atom
    {"." {:fn (fn [s env]
@@ -66,68 +109,23 @@
                  (let [[s id] (spop s)
                        [s v] (spop s)]
                    [s (assoc env id v)]))}
+    "apply" {:fn (fn [s env]
+                  (let [[s tokens] (spop s)]
+                    (apply-tokens [s env] (:quotation tokens))))}
     "drop"  {:fn sf-drop}
     "peek"  {:fn (fn [s env]
                    (let [v (first s)]
                      (println v "=" (type v)))
                    [s env])}
     "dup"   {:fn (fn [s env] [(conj s (peek s)) env])}
-    "env"   {:fn (fn [s env] (println (sort (keys env)))
+    "env"   {:fn (fn [s env]
+                   (print-env env)
                    [s env])}
     "q"     {:fn (fn [s env] (System/exit (top-if s number? 0)))}
     "swap"  {:fn (fn [s env] (let [[a b & r] s]
                               (if (>= (count s) 2)
                                 [(conj (conj r a) b) env]
                                 [s env])))}}))
-
-(defn make-line-reader []
-  (let [cr (ConsoleReader.)]
-    (.setPrompt cr prompt)
-    (.addCompleter cr (StringsCompleter. (keys @default-env)))
-    (.addCompleter cr (FileNameCompleter.))
-    cr))
-
-(defn print-stack [stack]
-  (println "S: " (str/join " " (reverse stack))))
-
-(def parser
-  (instaparse/parser
-   "S = (blank|word|str|keyword|num|quotation)*
-    <blank> = <#'\\s+'>
-    quotation = <'['> S <']'>
-    num = #'-?[0-9]+\\.?[0-9]*'
-    str = <'\"'> #'[^\"]*' <'\"'>
-    keyword = <':'> #'[^ ]*'
-    word = #'[^0-9\\s\"][^\\s]*'
-"))
-
-;; (parser "A hej \"hej\" [ ]");
-;; (pp/pprint (parser "dup 3.4 3.4 3.4 dip \"hwody bowdy\" and"));
-(defn apply-tokens
-  "Applies the tokens on the [stack env] and returns a new [stack env] when done"
-  [[stack env] tokens]
-  (pp/pprint tokens)
-  ;(pp/pprint stack)
-  (if (empty? tokens)
-    [stack env]
-    (let [[kind value]  (first tokens)
-          remaining     (rest tokens)]
-      ;(println "kind " kind " value " value " type" (type value))
-      (condp = kind
-        :word (let [f (:fn (get env value))]
-                (if (nil? f)
-                  (do
-                    (println "*** Word not defined:" value "(Aborting execution)")
-                    [stack env])
-                  (recur (f stack env) remaining)))
-        :quotation (let [[_ v] value]
-                     (recur [(conj stack {:q (second value)}) env] remaining))
-        :num (let [v (read-string value)]
-               (recur [(conj stack v) env] remaining))
-        :keyword (recur [(conj stack (keyword value)) env] remaining)
-        :str (recur [(conj stack value) env] remaining)))))
-
-                                        ;
 
 (defn string-to-tokens
   "Parses the string s into tokens."
@@ -139,6 +137,13 @@
       tokens)))
 
 
+(defn make-line-reader []
+  (let [cr (ConsoleReader.)]
+    (.setPrompt cr prompt)
+    (.addCompleter cr (StringsCompleter. (keys @default-env)))
+    (.addCompleter cr (FileNameCompleter.))
+    cr))
+
 (defn repl [start-stack env start-words]
   (let [lr (make-line-reader)
         ;; env @default-env
@@ -146,6 +151,7 @@
         initial (apply-tokens [start-stack env] start-tokens)]
     (loop [[stack env] initial]
       (print-stack stack)
+      ;; (print-env env)
       (let [r (.readLine lr prompt)
             tokens (string-to-tokens r env lr)]
         (if (or (not tokens) (= r "bye"))
