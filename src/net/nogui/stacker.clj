@@ -61,7 +61,7 @@
     num = #'-?[0-9]+\\.?[0-9]*'
     str = <'\"'> #'[^\"]*' <'\"'>
     keyword = <':'> #'[^ ]*'
-    word = #'[^0-9\\s\"][^\\s]*'
+    word = #'[^0-9\\s\"][^\\s\\]]*'
 "))
 
 ;; (parser "A hej \"hej\" [ ]");
@@ -70,7 +70,7 @@
   "Applies the tokens on the [stack env] and returns a new [stack env] when done"
   [[stack env] tokens]
   ;; (pp/pprint tokens)
-  ;(pp/pprint stack)
+  ;; (pp/pprint stack)
   (if (empty? tokens)
     [stack env] ;; return what is left
     (let [[kind value]  (first tokens)
@@ -112,12 +112,23 @@
     "apply" {:fn (fn [s env]
                   (let [[s tokens] (spop s)]
                     (apply-tokens [s env] (:quotation tokens))))}
+    "range" {:fn (func2 range)}
     "drop"  {:fn sf-drop}
+    "map"   {:fn (fn [s env]
+                   (let [[s map-fn] (spop s)
+                         [s sequence] (spop s)]
+                     ;; (println "map" map-fn "onto" sequence)
+                     [(conj s (map #(first (first %))
+                                       (map #(apply-tokens [(conj s %) env] (:quotation map-fn)) sequence))) env]
+                     #_[(conj s (f b a)) env]))}
     "peek"  {:fn (fn [s env]
                    (let [v (first s)]
                      (println v "=" (type v)))
                    [s env])}
     "dup"   {:fn (fn [s env] [(conj s (peek s)) env])}
+    "stack" {:fn (fn [s env]
+                   (print-stack s)
+                   [s env])}
     "env"   {:fn (fn [s env]
                    (print-env env)
                    [s env])}
@@ -150,7 +161,7 @@
         start-tokens (string-to-tokens (str/join " " start-words) env lr)
         initial (apply-tokens [start-stack env] start-tokens)]
     (loop [[stack env] initial]
-      (print-stack stack)
+      ;;(print-stack stack)
       ;; (print-env env)
       (let [r (.readLine lr prompt)
             tokens (string-to-tokens r env lr)]
