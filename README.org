@@ -70,6 +70,7 @@ but for interactive instructing a program what to do this is refreshingly intuit
 *** The built-in functions
     - p :: prints the top of the stack
     - drop :: drops the top of the stack
+    - dup :: duplicates the top of the stack
     - * :: takes the top two elements of the stack, multiplies them and puts the result back on the stack.
     - swap :: swaps the top two elements on the stack
     - put ::  stores the second element on the stack in the enviroment using what is on top as the index.

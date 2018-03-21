@@ -101,7 +101,7 @@
     "/" {:fn (func2 /)}
     "p" {:fn (fn [s env]
                (println (peek s))
-               (sf-drop s env))}
+               [s env] #_(sf-drop s env))}
     "get" {:fn (fn [s env]
                  (let [[s id] (spop s)]
                    [(conj s (get env id)) env]))}
