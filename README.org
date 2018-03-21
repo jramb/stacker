@@ -1,23 +1,88 @@
 * stacker
+  :PROPERTIES:
+  :CUSTOM_ID: stacker
+  :END:
 
 A Clojure library designed to implement a stack based REPL and execution
 engine.
 
 ** Usage
-
-*** Use in your own programs
+   :PROPERTIES:
+   :CUSTOM_ID: usage
+   :END:
 
 Either run this project on its own (see below, "Simple repl") or include
 in your own =project.clj=:
 
-[[https://clojars.org/net.nogui/stacker][[[https://img.shields.io/clojars/v/net.nogui/stacker.svg]]]]
+*** The language
+
+Stacker is a stack-based language, inspired by Forth, Factor and others.
+You might wonder why on earth you would prefer this to a real Clojure REPL?
+This is simply because I think that an interactive interface on the command line
+is even easier to handle than the fullblown REPL in S-expressions.
+
+Technically it is not less powerfull.
+
+Compare a simple mathematical equation:
+
+    (4 + 5 + 6) * (7 - 2)
+
+in Lisp this would be
+
+    (* (+ 4 5 6) (- 7 2))
+
+In Stacker is is short and elegant:
+
+    4 5 6 + + 7 2 - * p
+
+Look Ma, no parentheses! (The final =p= is strictly not necessary, it depends on what you
+want to do with the result.) When you regard the interactive aspect it becomes even more
+interesting. Assume you wanted to see the interim values (or you want to build up the
+result in steps), you can write:
+
+    4 5 6 + + p 7 2 - p *
+
+or build up the result in steps
+
+    4 5 6 + + p
+    7 2 - p
+    * p
+
+The =p= will print the top of the stack. If this was a program it would not matter much,
+but for interactive instructing a program what to do this is refreshingly intuitive!
+
+*** The syntax
+
+    Items are normally separated by space characters (currently newline works
+    only outside strings and quotations). Input will manipulate the stack (and
+    the invisible environment, more about that later).
+
+    - Numbers: =4=, =5.2=, =3.1415926=, etc
+    - Strings: ="Hello, world"=, ="Hi"=
+    - Words (commands): =p=, =*=, =/=, =dup=, =drop=, ...
+    - Keywords: =:myvar=, =:hi-there=, ...
+    - Quotations: =[ 4 5 *]=, =[ * ]=, ...
+
+    Everything is applied to the stack. Numbers and Strings are pushed on top of the stack.
+    Words can affect the stack. Quotations are not executed immediately, but pushed on the
+    stack as a single object (they can be executed then using the =apply= word.
+
+*** The built-in functions
+    - p :: prints the top of the stack
+    - drop :: drops the top of the stack
+    - * :: takes the top two elements of the stack, multiplies them and puts the result back on the stack.
+    - swap :: swaps the top two elements on the stack
+    - put ::  stores the second element on the stack in the enviroment using what is on top as the index.
+    - get :: retrieves what is indicated by the top from the env.
+    - apply :: pops the top of the stack (it must be a quotation) and appies it to the current stack.
 
 *** Simple repl
     :PROPERTIES:
     :CUSTOM_ID: simple-repl
     :END:
 
-Run =lein run= to start a quite simple repl.
+Run =lein run= to start a simple repl. (Technically it is not a "REPL", rather a "REL" (no print)
+or a "shell", whatever you prefer.)
 
 Run with parameters (one or many) to start repl and process the commands
 from the parameter.
@@ -35,25 +100,37 @@ or
     lein run "4 5 *" p 355 113. "/" p q
 #+END_EXAMPLE
 
+The quotation marks are only necessary because of the shell,
+which would otherwise expand the =*= for example. The programm
+will currently feed all parameters (=argv=) to the parser and evaluate
+everything in order.
+
 The "q" is necessary to end the repl / the programm. If you leave that
-out, the repl continues.
+out, the repl/shell continues after processing the initial input.
 
 *** Your own programs
     :PROPERTIES:
     :CUSTOM_ID: your-own-programs
     :END:
 
+include it into your =project.clj=
+
+[[https://clojars.org/net.nogui/stacker][[[https://img.shields.io/clojars/v/net.nogui/stacker.svg]]]]
+
 You can extend the environment with your own commands and thus give your
 own tools a convenient REPL:
 
-  1. extend the @default-env with your own functions (probably)
-  2. start with a (probably) empty stack, a simple empty list =()=
-  3. Repeat until tired: Apply tokens on the [stack env] pair. You can use
-     =string-to-tokens= to convert a string to a list of tokens.
-  4. Alternatively you can call the provided =repl= on the start-stack and
-     env, which starts an interactive repl for you.
+1) extend the @default-env with your own functions (probably)
+2) start with a (probably) empty stack, a simple empty list =()=
+3) Repeat until tired: Apply tokens on the [stack env] pair. You can use
+   =string-to-tokens= to convert a string to a list of tokens.
+4) Alternatively you can call the provided =repl= on the start-stack and
+   env, which starts an interactive repl for you.
 
 ** License
+   :PROPERTIES:
+   :CUSTOM_ID: license
+   :END:
 
 Copyright © 2017-2018 Jörg Ramb
 
