@@ -32,6 +32,26 @@
           [s b] (spop s)]
       [(conj s (f b a)) env])))
 
+(defn func1
+  "Takes a unary function and returns a stacker-function which expects one
+  items on the stack, performs the function on it and pushes the result back on
+  the stack. In other words: it makes a ( a -- (f a) )"
+  [f]
+  (fn [s env]
+    (let [[s a] (spop s)]
+      [(conj s (f a)) env])))
+
+(defn func3
+  "Takes a ternary function and returns a stacker-function which expects two
+  items on the stack, performs the function on it and pushes the result back on
+  the stack. In other words: it makes a ( a b c -- (f c b a) )"
+  [f]
+  (fn [s env]
+    (let [[s a] (spop s)
+          [s b] (spop s)
+          [s c] (spop s)]
+      [(conj s (f c b a)) env])))
+
 (defn env-neutral-function
   "Takes a function (s->s) and returns a stacker-function which does not change the env."
   [f]
@@ -90,62 +110,143 @@
         :keyword (recur [(conj stack (keyword value)) env] remaining)
         :str (recur [(conj stack value) env] remaining)))))
 
+(defn string-to-tokens
+  "Parses the string s into tokens."
+  [str]
+  (let [p (parser str)]
+    ;;(pp/pprint p)
+    (when-let [tokens (rest p)]
+      ;;(pp/pprint tokens)
+      tokens)))
+
 (def default-env
   (atom
-   {"." {:fn (fn [s env]
+   {"." {:signature "(a -- )"
+         :fn (fn [s env]
                (println (peek s))
-               [(pop s) env])}
-    "+" {:fn (func2 +)}
-    "-" {:fn (func2 -)}
-    "*" {:fn (func2 *)}
-    "/" {:fn (func2 /)}
-    "p" {:fn (fn [s env]
+               (sf-drop s env))}
+    "+" {:signature "(n1 n2 -- n3)"
+         :fn (func2 +)}
+    "-" {:signature "(n1 n2 -- n3)"
+         :fn (func2 -)}
+    "*" {:signature "(n1 n2 -- n3)"
+         :fn (func2 *)}
+    "/" {:signature "(n1 n2 -- n3)"
+         :fn (func2 /)}
+    ">" {:signature "(n1 n2 -- bool)"
+         :fn (func2 >)}
+    ">=" {:signature "(n1 n2 -- bool)"
+          :fn (func2 >=)}
+    "<=" {:signature "(n1 n2 -- bool)"
+          :fn (func2 <=)}
+    "<" {:signature "(n1 n2 -- bool)"
+         :fn (func2 <)}
+    "=" {:signature "(a b -- bool)"
+         :fn (func2 =)}
+    "and" {:signature "(bool-1 bool-2 -- bool-3)"
+          :fn (func2 (fn [a b] (and a b)))}
+    "or" {:signature "(bool-1 bool-2 -- bool-3)"
+          :fn (func2 (fn [a b] (or a b)))}
+    "inc" {:signature "(n1 -- n2)"
+           :test [["4 inc" "5"]]
+           :fn (func1 inc)}
+    "dec" {:signature "(n1 -- n2)"
+           :test [[ "4 dec" "3"]]
+           :fn (func1 dec)}
+    "parse" {:signature "str -- q"
+             :doc "parses the string str and leaves the result as a quotation on the stack."
+             :fn (fn [s env]
+                   (let [[s string] (spop s)]
+                     [(conj s {:quotation (string-to-tokens string)}) env]))}
+    "test" {:signature "(id -- bool)"
+            :doc "Performs a self-test (if defined) on the word."
+            :fn (fn [s env]
+                  (let [[s id] (spop s)
+                        [test result check] (first (:test (get env id)))]
+                    [(conj s (if test
+                               (let [[s2 env] (apply-tokens [() env] (string-to-tokens test))
+                                     after-test s2
+                                     [s3 env] (apply-tokens [() env] (string-to-tokens result))
+                                     ok? (= s2 s3)]
+                                 (println test "-->" s2 "expected" s3 ":" (if ok? "PASS" "FAIL"))
+                                 ok?)
+                               (do
+                                 (println "No test defined for" id ": SKIP")
+                                 true))) env]))}
+    "if" {:signature "(bool q-true q-false -- ?)"
+          :test [["4 5 > [ :yes ] [ :no ] if" ":no"]]
+          :doc "if bool is true, apply q-true, otherwise apply q-false. "
+          :fn (fn [s env]
+                (let [[s else] (spop s)
+                      [s when] (spop s)
+                      [s chck] (spop s)]
+                  (apply-tokens [s env] (:quotation (if chck when else)))))}
+    "doc" {:signature "(id -- )"
+            :fn (fn [s env]
+                  (let [[s id] (spop s)
+                        e (get env id)]
+                    (if e
+                      (do
+                        (println "### " id "--" (:signature e))
+                        (when (:doc e)
+                          (println (:doc e)))
+                        (dorun
+                         (for [test (:test e)]
+                           (println "Example: " (first test) "-->" (second test)))))
+                      (println "Unknown:" id)))
+                  [s env])}
+    "p" {:signature "(a -- a)"
+         :fn (fn [s env]
                (println (peek s))
-               [s env] #_(sf-drop s env))}
-    "get" {:fn (fn [s env]
+               [s env])}
+    "get" {:signature "(a -- b)"
+           :fn (fn [s env]
                  (let [[s id] (spop s)]
                    [(conj s (get env id)) env]))}
-    "put" {:fn (fn [s env]
+    "put" {:signature "(a id -- )"
+           :fn (fn [s env]
                  (let [[s id] (spop s)
                        [s v] (spop s)]
                    [s (assoc env id v)]))}
-    "apply" {:fn (fn [s env]
-                  (let [[s tokens] (spop s)]
-                    (apply-tokens [s env] (:quotation tokens))))}
-    "range" {:fn (func2 range)}
-    "drop"  {:fn sf-drop}
-    "map"   {:fn (fn [s env]
+    "apply" {:signature "(q -- ?)"
+             :fn (fn [s env]
+                   (let [[s tokens] (spop s)]
+                     (apply-tokens [s env] (:quotation tokens))))}
+    "range" {:signature "(n1 n2 -- seq)"
+             :fn (func2 range)}
+    "drop"  {:signature "(a -- )"
+             :fn sf-drop}
+    "map"   {:signature "(seq1 q -- seq2)"
+             :fn (fn [s env]
                    (let [[s map-fn] (spop s)
                          [s sequence] (spop s)]
-                     ;; (println "map" map-fn "onto" sequence)
-                     [(conj s (map #(first (first %))
-                                       (map #(apply-tokens [(conj s %) env] (:quotation map-fn)) sequence))) env]
-                     #_[(conj s (f b a)) env]))}
-    "peek"  {:fn (fn [s env]
-                   (let [v (first s)]
+                     [(conj s
+                            (map #(first (first (apply-tokens [(conj s %) env] (:quotation map-fn)))) sequence)) env]
+                     ))}
+    "peek"  {:signature "(a -- a)"
+             :fn (fn [s env]
+                   (let [v (peek s)]
                      (println v "=" (type v)))
                    [s env])}
-    "dup"   {:fn (fn [s env] [(conj s (peek s)) env])}
-    "stack" {:fn (fn [s env]
+    "dup"   {:signature "(a -- a a)"
+             :test [["7 dup" "7 7"]]
+             :doc "Duplicates the top of the stack."
+             :fn (fn [s env] [(conj s (peek s)) env])}
+    "stack" {:signature "( -- )"
+             :fn (fn [s env]
                    (print-stack s)
                    [s env])}
-    "env"   {:fn (fn [s env]
-                   (print-env env)
-                   [s env])}
-    "q"     {:fn (fn [s env] (System/exit (top-if s number? 0)))}
-    "swap"  {:fn (fn [s env] (let [[a b & r] s]
+    "env"   {:signature "( -- )"
+             :fn (fn [s env]
+                   [(conj s (sort (map str (keys env)))) env])}
+    "q"     {:signature "( -- )"
+             :fn (fn [s env] (System/exit (top-if s number? 0)))}
+    "swap"  {:signature "(a b -- b a)"
+             :fn (fn [s env] (let [[a b & r] s]
                               (if (>= (count s) 2)
                                 [(conj (conj r a) b) env]
                                 [s env])))}}))
 
-(defn string-to-tokens
-  "Parses the string s into tokens."
-  [s env lr]
-  (let [p (parser s)]
-    ;(pp/pprint p)
-    (when-let [tokens (rest p)]
-      ;(pp/pprint tokens)
-      tokens)))
 
 
 (defn make-line-reader []
@@ -158,13 +259,13 @@
 (defn repl [start-stack env start-words]
   (let [lr (make-line-reader)
         ;; env @default-env
-        start-tokens (string-to-tokens (str/join " " start-words) env lr)
+        start-tokens (string-to-tokens (str/join " " start-words))
         initial (apply-tokens [start-stack env] start-tokens)]
     (loop [[stack env] initial]
       ;;(print-stack stack)
       ;; (print-env env)
       (let [r (.readLine lr prompt)
-            tokens (string-to-tokens r env lr)]
+            tokens (string-to-tokens r)]
         (if (or (not tokens) (= r "bye"))
           [stack env] ;; return the stack and current env
           (recur (apply-tokens [stack env] tokens)))))))
