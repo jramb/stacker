@@ -1,6 +1,6 @@
 (ns
-  ^{:doc "Stacker - stack based repl interface -- similar to Forth/Factor"
-    :author "Jörg Ramb, 2017"}
+  ^{:doc "Stacker - stack based language with repl interface -- similar to Forth/Factor"
+    :author "Jörg Ramb, 2017-2018"}
   net.nogui.stacker
   (:gen-class :main true)
   (:require [clojure.string :as str]
@@ -14,8 +14,7 @@
     (jline.console.completer Completer)
     (jline.console.completer FileNameCompleter)
     (jline.console.completer StringsCompleter)
-    )
-  )
+    ))
 
 (def prompt "\u001B[32m>\u001B[0m ")
 
@@ -58,17 +57,24 @@
   (fn [s env]
     [(f s) env]))
 
-(defn top-if [stack cond else]
+(defn top-if [stack condition else]
   (let [t (peek stack)]
-    (if (cond t) t else)))
+    (if (condition t) t else)))
 
 
 ;; All stacker functions take a stack and an env and return a stack and an env
-(defn sf-drop [s env]
-  [(if (first s) (pop s) s) env])
+(defn safe-drop [s env]
+  [(if (peek s) (pop s) s) env])
+
+(defn safe-print [stack-item]
+  ;; FIXME: make this better
+  (str stack-item))
 
 (defn print-stack [stack]
-  (println "S:" (str/join " " (reverse stack))))
+  #_(dorun (map-indexed (fn [i val] (print (str i ": "))
+                        (pp/pprint val)) (reverse stack)))
+  #_(pp/pprint stack #_(str/join " " (reverse stack)))
+  (println "S:" (str/join ", " (map safe-print (reverse stack)))))
 
 (defn print-env [env]
   (println "E:" (sort (map str (keys env)))))
@@ -129,7 +135,7 @@
          :doc "Pops the top of the stack and displays it."
          :fn (fn [s env]
                (println (peek s))
-               (sf-drop s env))}
+               (safe-drop s env))}
     "+" {:signature "(n1 n2 -- n3)"
          :fn (func2 +)}
     "-" {:signature "(n1 n2 -- n3)"
@@ -165,11 +171,15 @@
     "dec" {:signature "(n1 -- n2)"
            :test [[ "4 dec" "3"]]
            :fn (func1 dec)}
-    "parse" {:signature "str -- q"
+    "parse" {:signature "(str -- q)"
              :doc "parses the string str and leaves the result as a quotation on the stack."
              :fn (fn [s env]
                    (let [[s string] (spop s)]
                      [(conj s {:quotation (string-to-tokens string)}) env]))}
+    "join" {:signature "(seq str-delim -- str-joined)"
+            :doc "joins the elements of seq with str in between."
+            :fn (func2 (fn [seq s]
+                         (str/join s seq)))}
     "test" {:signature "(id -- bool)"
             :doc "Performs a self-test (if defined) on the word."
             :fn (fn [s env]
@@ -228,7 +238,7 @@
              :doc "realizes a potential lazy sequence"
              :fn (func1 doall)}
     "load"  {:signature "(f -- ?)"
-             :doc "loads the file f, parse and applies the contents."
+             :doc "loads the filename f, parse and applies the contents."
              :fn (fn [s env]
                    (let [[s f] (spop s)
                          tokens (string-to-tokens (slurp f))]
@@ -240,14 +250,27 @@
                             (range a (inc b))
                             (range a (dec b) -1))))}
     "drop"  {:signature "(a -- )"
-             :fn sf-drop}
+             :fn safe-drop}
+    "skip"  {:signature "(seq skip-num -- seq)"
+             :doc "skips the first skip-num elements from the sequence."
+             :fn (func2 (fn [sequence skip-num]
+                          (drop skip-num (seq sequence))))}
+    "take"  {:signature "(seq take-num -- seq)"
+             :doc "takes the first take-num elements from the sequence."
+             :fn (func2 (fn [sequence take-num]
+                          (take take-num (seq sequence))))}
+    "reverse"  {:signature "(seq -- seq)"
+                :doc "reverses the sequence."
+                :fn (func1 (fn [sequence]
+                          (reverse (seq sequence))))}
     "reduce" {:signature "(seq1 q -- a)"
               :doc "reduces the sequence using the quotation q and leaves the result on the stack."
               :test [["1 10 range [*] reduce" "3628800"]]
               :fn (fn [s env]
                     (let [[s reduce-fn] (spop s)
                           reduce-fn (:quotation reduce-fn)
-                          [s sequence] (spop s)]
+                          [s sequence] (spop s)
+                          sequence (seq sequence)]
                       [(conj s
                              (reduce (fn [a b]
                                        (first (first (apply-tokens [(conj s a b) env] reduce-fn)))) sequence)) env]
@@ -257,7 +280,7 @@
                    (let [[s map-fn] (spop s)
                          [s sequence] (spop s)]
                      [(conj s
-                            (map #(first (first (apply-tokens [(conj s %) env] (:quotation map-fn)))) sequence)) env]
+                            (map #(first (first (apply-tokens [(conj s %) env] (:quotation map-fn)))) (seq sequence))) env]
                      ))}
     "peek"  {:signature "(a -- a)"
              :fn (fn [s env]

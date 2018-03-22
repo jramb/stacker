@@ -19,7 +19,7 @@ in your own =project.clj=:
 Stacker is a stack-based language, inspired by Forth, Factor and others.
 You might wonder why on earth you would prefer this to a real Clojure REPL?
 This is simply because I think that an interactive interface on the command line
-is even easier to handle than the fullblown REPL in S-expressions.
+is even easier to handle with a stack based language than the fullblown REPL in S-expressions.
 
 Technically it is not less powerfull.
 
@@ -67,8 +67,38 @@ but for interactive instructing a program what to do this is refreshingly intuit
     Words can affect the stack. Quotations are not executed immediately, but pushed on the
     stack as a single object (they can be executed then using the =apply= word.
 
+    Pushing any word leaves the string on on the stack. This is a convenience feature!
+    The alternative is to always give a string (".....") first. The only problem
+    is that they will forget about it, after some minutes
+
+    You can load a file containing stacker input using the =load= word. For example:
+
+        > test1.stkr load
+
+**** Word documentation
+         > "range" doc
+         ... bla bla ...
+
+**** Self-testing
+     If the word definition contains one or several tests, then the tests can be executed:
+
+         > "range" test
+         ... bla bla ...
+
+     Using stacker you can easily test all defined words in one go:
+
+         > env [test] map do
+
+**** New words
+    You can store quotations in the environment, they can then be called as any other word:
+
+        > [3 *] "tripple" put
+        > 19 tripple p
+        57
+
 *** The built-in functions
     - p :: prints the top of the stack
+    - load :: takes a filename as a single parameter. Loads, parses and applies the file to the stack.
     - drop :: drops the top of the stack
     - dup :: duplicates the top of the stack
     - * :: takes the top two elements of the stack, multiplies them and puts the result back on the stack.

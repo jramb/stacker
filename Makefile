@@ -3,9 +3,11 @@ repl:
 
 test:
 	lein run 4 5 \* p 355 113. \/ . 0 q
+	lein run test1.stkr load
 
 jar:
 	lein uberjar
+	cd target && ln -s stacker-0.1.0-standalone.jar stacker.jar
 
 deploy:
 	lein deploy clojars
