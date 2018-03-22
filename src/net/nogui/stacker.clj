@@ -212,6 +212,9 @@
              :fn (fn [s env]
                    (let [[s tokens] (spop s)]
                      (apply-tokens [s env] (:quotation tokens))))}
+    "do"    {:signature "(seq -- seq)"
+             :doc "realizes a potential lazy sequence"
+             :fn (func1 doall)}
     "range" {:signature "(n1 n2 -- seq)"
              :doc "returns a lazy sequence from n1..n2 (note: including both n1 and n2). If n2<n1 the sequence is reversed."
              :fn (func2 (fn [a b]
