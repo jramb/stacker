@@ -78,9 +78,9 @@
    "S = (blank|word|str|keyword|num|quotation)*
     <blank> = <#'\\s+'>
     quotation = <'['> S <']'>
-    num = #'-?[0-9]+\\.?[0-9]*'
+    num = #'-?[0-9]+\\.?[0-9]*[M]?'
     str = <'\"'> #'[^\"]*' <'\"'>
-    keyword = <':'> #'[^ ]*'
+    keyword = <':'> #'[^\\s\\]]*'
     word = #'[^0-9\\s\"][^\\s\\]]*'
 "))
 
@@ -213,9 +213,24 @@
                    (let [[s tokens] (spop s)]
                      (apply-tokens [s env] (:quotation tokens))))}
     "range" {:signature "(n1 n2 -- seq)"
-             :fn (func2 range)}
+             :doc "returns a lazy sequence from n1..n2 (note: including both n1 and n2). If n2<n1 the sequence is reversed."
+             :fn (func2 (fn [a b]
+                          (if (<= a b)
+                            (range a (inc b))
+                            (range a (dec b) -1))))}
     "drop"  {:signature "(a -- )"
              :fn sf-drop}
+    "reduce" {:signature "(seq1 q -- a)"
+              :doc "reduces the sequence using the quotation q and leaves the result on the stack."
+              :test [["1 10 range [*] reduce" "3628800"]]
+              :fn (fn [s env]
+                    (let [[s reduce-fn] (spop s)
+                          reduce-fn (:quotation reduce-fn)
+                          [s sequence] (spop s)]
+                      [(conj s
+                             (reduce (fn [a b]
+                                       (first (first (apply-tokens [(conj s a b) env] reduce-fn)))) sequence)) env]
+                      ))}
     "map"   {:signature "(seq1 q -- seq2)"
              :fn (fn [s env]
                    (let [[s map-fn] (spop s)

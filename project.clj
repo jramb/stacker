@@ -8,9 +8,10 @@
                  [instaparse "1.4.8"]
                  [jline/jline "2.14.5"]
                  ;; [jline/jline "3.0.0.M1"]
-                 ;[org.jline/jline "3.3.0"]  
+                 ;[org.jline/jline "3.3.0"]
                  ]
-  :main ^:skip-aot net.nogui.stacker
+  :main net.nogui.stacker
+  ;; :main ^:skip-aot net.nogui.stacker
   :profiles {:uberjar {:aot :all}}
   ;; :aot :all
   )
