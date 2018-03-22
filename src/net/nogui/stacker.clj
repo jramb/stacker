@@ -97,12 +97,16 @@
           remaining     (rest tokens)]
       ;(println "kind " kind " value " value " type" (type value))
       (condp = kind
-        :word (let [f (:fn (get env value))]
-                (if (nil? f)
-                  (do
-                    (println "*** Word not defined:" value "(Aborting execution)")
-                    [stack env])
-                  (recur (f stack env) remaining)))
+        :word (let [w (get env value)]
+                (if-let [f (:fn w)]
+                  (recur (f stack env) remaining)
+                  (if-let [q (:quotation w)]
+                    (let [result (apply-tokens [stack env] q)]
+                      (recur result remaining))
+                    (do
+                      #_(println "*** Word not defined:" value "(pushed on stack)")
+                      (recur [(conj stack value) env] remaining)
+                      #_[stack env]))))
         :quotation (let [[_ v] value]
                      (recur [(conj stack {:quotation (rest value)}) env] remaining))
         :num (let [v (read-string value)]
@@ -122,6 +126,7 @@
 (def default-env
   (atom
    {"." {:signature "(a -- )"
+         :doc "Pops the top of the stack and displays it."
          :fn (fn [s env]
                (println (peek s))
                (sf-drop s env))}
@@ -135,6 +140,10 @@
          :fn (func2 /)}
     ">" {:signature "(n1 n2 -- bool)"
          :fn (func2 >)}
+    "count" {:signature "(seq -- a)"
+             :doc "counts the number of elements in the sequence."
+             :test [["2 19 inc inc range count" "20"]]
+             :quotation (string-to-tokens "[1] map [+] reduce")}
     ">=" {:signature "(n1 n2 -- bool)"
           :fn (func2 >=)}
     "<=" {:signature "(n1 n2 -- bool)"
@@ -145,6 +154,9 @@
          :fn (func2 =)}
     "and" {:signature "(bool-1 bool-2 -- bool-3)"
           :fn (func2 (fn [a b] (and a b)))}
+    "clear" {:signature "(? -- )"
+             :doc "Clears the stack completely."
+             :fn (fn [s env] [() env])}
     "or" {:signature "(bool-1 bool-2 -- bool-3)"
           :fn (func2 (fn [a b] (or a b)))}
     "inc" {:signature "(n1 -- n2)"
@@ -215,6 +227,12 @@
     "do"    {:signature "(seq -- seq)"
              :doc "realizes a potential lazy sequence"
              :fn (func1 doall)}
+    "load"  {:signature "(f -- ?)"
+             :doc "loads the file f, parse and applies the contents."
+             :fn (fn [s env]
+                   (let [[s f] (spop s)
+                         tokens (string-to-tokens (slurp f))]
+                     (apply-tokens [s env] tokens)))}
     "range" {:signature "(n1 n2 -- seq)"
              :doc "returns a lazy sequence from n1..n2 (note: including both n1 and n2). If n2<n1 the sequence is reversed."
              :fn (func2 (fn [a b]
