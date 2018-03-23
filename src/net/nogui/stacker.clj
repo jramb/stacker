@@ -110,9 +110,11 @@
                     (let [result (apply-tokens [stack env] q)]
                       (recur result remaining))
                     (do
-                      #_(println "*** Word not defined:" value "(pushed on stack)")
-                      (recur [(conj stack value) env] remaining)
-                      #_[stack env]))))
+                      (if (:-strict env)
+                        (do
+                          (println "*** Word not defined:" value "(pushed on stack)")
+                          [stack env])
+                        (recur [(conj stack value) env] remaining))))))
         :quotation (let [[_ v] value]
                      (recur [(conj stack {:quotation (rest value)}) env] remaining))
         :num (let [v (read-string value)]

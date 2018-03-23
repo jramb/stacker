@@ -67,9 +67,11 @@ but for interactive instructing a program what to do this is refreshingly intuit
     Words can affect the stack. Quotations are not executed immediately, but pushed on the
     stack as a single object (they can be executed then using the =apply= word.
 
-    Pushing any word leaves the string on on the stack. This is a convenience feature!
-    The alternative is to always give a string (".....") first. The only problem
-    is that they will forget about it, after some minutes
+    NOTE: Pushing an *unknown* word leaves the word as a string on on the stack.
+    The alternative is to always use quotes ("....."), which always renders as a string.
+    This is very much a convenience feature, which will help you more often than it
+    bites you. (You can switch this off by this: =1 :-strict set=)
+
 
     You can load a file containing stacker input using the =load= word. For example:
 
