@@ -104,7 +104,7 @@
     [stack env] ;; return what is left
     (let [[kind value]  (first tokens)
           remaining     (rest tokens)]
-      ;(println "kind " kind " value " value " type" (type value))
+      ;; (println "kind " kind " value " value " type" (type value))
       (condp = kind
         :word (let [w (get env value)]
                 (if-let [f (:fn w)]
@@ -121,9 +121,7 @@
         :quotation (let [[_ v] value]
                      (recur [(conj stack {:quotation (rest value)}) env] remaining))
         :sexp (let [v (eval (read-string value))]
-                (recur [(conj stack (if (fn? v)
-                                      {:fn v}
-                                      v)) env] remaining))
+                (recur [(conj stack (if (fn? v) {:fn v} v)) env] remaining))
         :reader (let [v (read-string value)]
                   (recur [(conj stack v) env] remaining))
         :keyword (recur [(conj stack (keyword value)) env] remaining)
