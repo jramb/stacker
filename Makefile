@@ -7,7 +7,7 @@ test:
 
 jar:
 	lein uberjar
-	cd target && ln -s stacker-0.1.0-standalone.jar stacker.jar
+	cd target && ln -s stacker-0.1.1-standalone.jar stacker.jar
 
 deploy:
 	lein deploy clojars

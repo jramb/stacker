@@ -165,11 +165,11 @@
          :fn (func2 =)}
     "and" {:signature "(bool-1 bool-2 -- bool-3)"
           :fn (func2 (fn [a b] (and a b)))}
+    "or" {:signature "(bool-1 bool-2 -- bool-3)"
+          :fn (func2 (fn [a b] (or a b)))}
     "clear" {:signature "(? -- )"
              :doc "Clears the stack completely."
              :fn (fn [s env] [() env])}
-    "or" {:signature "(bool-1 bool-2 -- bool-3)"
-          :fn (func2 (fn [a b] (or a b)))}
     "inc" {:signature "(n1 -- n2)"
            :test [["4 inc" "5"]]
            :fn (func1 inc)}

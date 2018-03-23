@@ -1,4 +1,4 @@
-(defproject net.nogui/stacker "0.1.0"
+(defproject net.nogui/stacker "0.1.1"
   :description "Stacker - A stack based language and REPL"
   :author "Jörg Ramb"
   :url "https://github.com/jramb/stacker"
