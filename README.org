@@ -17,7 +17,7 @@ Why? *Finally a language whose syntax I can remember!*
 Either run this project on its own (see below, "Simple repl") or include
 in your own =project.clj=:
 
-    [net.nogui/stacker "0.1.1"]
+    =[net.nogui/stacker "0.1.1"]=
 
 *** The language
 
@@ -30,28 +30,30 @@ Technically it is not less powerfull.
 
 Compare a simple mathematical equation:
 
-    (4 + 5 + 6) * (7 - 2)
+    =(4 + 5 + 6) * (7 - 2)=
 
 in Lisp this would be
 
-    (* (+ 4 5 6) (- 7 2))
+    =(* (+ 4 5 6) (- 7 2))=
 
 In Stacker is is short and elegant:
 
-    4 5 6 + + 7 2 - * p
+    =4 5 6 + + 7 2 - * p=
 
 Look Ma, no parentheses! (The final =p= is strictly not necessary, it depends on what you
 want to do with the result.) When you regard the interactive aspect it becomes even more
 interesting. Assume you wanted to see the interim values (or you want to build up the
 result in steps), you can write:
 
-    4 5 6 + + p 7 2 - p *
+    =4 5 6 + + p 7 2 - p *=
 
-or build up the result in steps
+or build up the result in steps and peek (=p=) at the results in between:
 
-    4 5 6 + + p
-    7 2 - p
-    * p
+     #+begin_src text
+       4 5 6 + + p
+       7 2 - p
+       ,* p
+    #+end_src
 
 The =p= will print the top of the stack. If this was a program it would not matter much,
 but for interactive instructing a program what to do this is refreshingly intuitive!
@@ -81,28 +83,36 @@ but for interactive instructing a program what to do this is refreshingly intuit
 
     You can load a file containing stacker input using the =load= word. For example:
 
-    > test1.stkr load
 
-**** Word documentation
-     > "range" doc
-     ... bla bla ...
+     #+begin_src text
+       > test1.stkr load
+     #+end_src
+
+**** COMMENT Word documentation
+     #+begin_src text
+       > "range" doc
+       ###  range -- (n1 n2 -- seq)
+       returns a lazy sequence from n1..n2 (note: including both n1 and n2). If n2<n1 the sequence is reversed.
+     #+end_src
 
 **** Self-testing
      If the word definition contains one or several tests, then the tests can be executed:
 
-     #+begin_src stacker
+     #+begin_src text
      > "range" test
      ... bla bla ...
      #+end_src
 
-     Using stacker you can easily test all defined words in one go:
+     Using stacker you can easily *test* all defined words in one go:
 
+     #+begin_src text
      > env [test] map do
+     #+end_src
 
 **** New words
      You can store quotations in the environment, they can then be called as any other word:
 
-     #+begin_src stacker
+     #+begin_src text
        > [3 *] "tripple" set
        > 19 tripple p
        57
