@@ -92,7 +92,7 @@ but for interactive instructing a program what to do this is refreshingly intuit
 **** New words
     You can store quotations in the environment, they can then be called as any other word:
 
-        > [3 *] "tripple" put
+        > [3 *] "tripple" set
         > 19 tripple p
         57
 

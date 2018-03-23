@@ -225,7 +225,8 @@
            :fn (fn [s env]
                  (let [[s id] (spop s)]
                    [(conj s (get env id)) env]))}
-    "put" {:signature "(a id -- )"
+    "set" {:signature "(a-value id -- )"
+           :doc "sets the entry named id to a-value in the env. a-value can be a quotation."
            :fn (fn [s env]
                  (let [[s id] (spop s)
                        [s v] (spop s)]
