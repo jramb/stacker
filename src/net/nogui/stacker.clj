@@ -125,9 +125,7 @@
                                       {:fn v}
                                       v)) env] remaining))
         :reader (let [v (read-string value)]
-                (recur [(conj stack (if (fn? v)
-                                      {:fn v}
-                                      v)) env] remaining))
+                  (recur [(conj stack v) env] remaining))
         :keyword (recur [(conj stack (keyword value)) env] remaining)
         :str (recur [(conj stack (read-string value)) env] remaining)))))
 
@@ -220,7 +218,7 @@
                         e (get env id)]
                     (if e
                       (do
-                        (println "### " id "--" (:signature e))
+                        (println "### " id "--" (or (:signature e) "(? -- ?)"))
                         (when (:doc e)
                           (println (:doc e)))
                         (dorun
@@ -310,6 +308,8 @@
     "env"   {:signature "( -- )"
              :fn (fn [s env]
                    [(conj s (sort (map str (keys env)))) env])}
+    "exit"  {:signature "( -- )"
+             :fn (fn [s env] (System/exit (top-if s number? 0)))}
     "q"     {:signature "( -- )"
              :fn (fn [s env] (System/exit (top-if s number? 0)))}
     "swap"  {:signature "(a b -- b a)"
