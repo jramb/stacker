@@ -1,10 +1,11 @@
-* stacker
+* Stacker
   :PROPERTIES:
   :CUSTOM_ID: stacker
   :END:
 
-A Clojure library designed to implement a stack based REPL and execution
-engine.
+A library designed to implement a stack based concatenated language
+in the style of Factor, including an execution engine and a RE(P)L which easily
+can be enabled for own programs with domain specific functionality.
 
 ** Usage
    :PROPERTIES:
@@ -151,9 +152,8 @@ out, the repl/shell continues after processing the initial input.
 
 include it into your =project.clj=
 
-[[https://img.shields.io/clojars/v/net.nogui/stacker.svg]]
+[[https://clojars.org/net.nogui/stacker][[https://img.shields.io/clojars/v/net.nogui/stacker.svg]]]
 
-[[https://clojars.org/net.nogui/stacker][Clojars]]
 
 You can now extend the environment with your own commands and thus give your
 own tools a convenient REPL:
