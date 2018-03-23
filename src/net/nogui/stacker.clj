@@ -80,18 +80,20 @@
   (println "E:" (sort (map str (keys env)))))
 
 (def parser
-  (instaparse/parser
-   "S = (blank|word|str|keyword|eval|lisp|quotation)*
-    <blank> = <#'\\s+'>
+  (instaparse/parser ;; EBNF
+   "S = (blank|word|str|keyword|reader|sexp|quotation)*
+    <blank> = #'\\s+'
     quotation = <'['> S <']'>
-    eval = (#'-?[0-9]+\\.?[0-9]*[M]?'|'nil')
-    lisp = #'\\([^(]*\\)'
-    str = <'\"'> #'[^\"]*' <'\"'>
+    word = #'[^0-9\\s)\"][^\\s\\]]*'
+    str = #'\"([^\\\\\"]|\\\\.)*\"'
+    <number> = #'-?[0-9]+\\.?[0-9]*([eE][-+]?[0-9]+)?[M]?'
+    sexp = #'\\([^()]*\\)'
+    reader = ( number | 'nil' )
     keyword = <':'> #'[^\\s\\]]*'
-    word = #'[^0-9\\s\"][^\\s\\]]*'
 "))
 
-;; (parser "A hej \"hej\" [ ]");
+;; (parser "(+ (inc 5) \"hej\" 4 5)");
+(parser "4.5 5 +")
 ;; (pp/pprint (parser "dup 3.4 3.4 3.4 dip \"hwody bowdy\" and"));
 (defn apply-tokens
   "Applies the tokens on the [stack env] and returns a new [stack env] when done"
@@ -118,12 +120,16 @@
                         (recur [(conj stack value) env] remaining))))))
         :quotation (let [[_ v] value]
                      (recur [(conj stack {:quotation (rest value)}) env] remaining))
-        :eval (let [v (read-string value)]
-               (recur [(conj stack v) env] remaining))
-        :lisp (let [v (eval (read-string value))]
-                (recur [(conj stack v) env] remaining))
+        :sexp (let [v (eval (read-string value))]
+                (recur [(conj stack (if (fn? v)
+                                      {:fn v}
+                                      v)) env] remaining))
+        :reader (let [v (read-string value)]
+                (recur [(conj stack (if (fn? v)
+                                      {:fn v}
+                                      v)) env] remaining))
         :keyword (recur [(conj stack (keyword value)) env] remaining)
-        :str (recur [(conj stack value) env] remaining)))))
+        :str (recur [(conj stack (read-string value)) env] remaining)))))
 
 (defn string-to-tokens
   "Parses the string s into tokens."
