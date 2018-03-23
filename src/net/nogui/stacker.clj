@@ -97,7 +97,7 @@
 ;; (pp/pprint (parser "dup 3.4 3.4 3.4 dip \"hwody bowdy\" and"));
 (defn apply-tokens
   "Applies the tokens on the [stack env] and returns a new [stack env] when done"
-  [[stack env] tokens]
+  [stack env tokens]
   ;; (pp/pprint tokens)
   ;; (pp/pprint stack)
   (if (empty? tokens)
@@ -108,24 +108,25 @@
       (condp = kind
         :word (let [w (get env value)]
                 (if-let [f (:fn w)]
-                  (recur (f stack env) remaining)
+                  (let [[stack env] (f stack env)]
+                    (recur stack env remaining))
                   (if-let [q (:quotation w)]
-                    (let [result (apply-tokens [stack env] q)]
-                      (recur result remaining))
+                    (let [[stack env] (apply-tokens stack env q)]
+                      (recur stack env remaining))
                     (do
                       (if (:-strict env)
                         (do
                           (println "*** Word not defined:" value "(pushed on stack)")
                           [stack env])
-                        (recur [(conj stack value) env] remaining))))))
+                        (recur (conj stack value) env remaining))))))
         :quotation (let [[_ v] value]
-                     (recur [(conj stack {:quotation (rest value)}) env] remaining))
+                     (recur (conj stack {:quotation (rest value)}) env remaining))
         :sexp (let [v (eval (read-string value))]
-                (recur [(conj stack (if (fn? v) {:fn v} v)) env] remaining))
+                (recur (conj stack (if (fn? v) {:fn v} v)) env remaining))
         :reader (let [v (read-string value)]
-                  (recur [(conj stack v) env] remaining))
-        :keyword (recur [(conj stack (keyword value)) env] remaining)
-        :str (recur [(conj stack (read-string value)) env] remaining)))))
+                  (recur (conj stack v) env remaining))
+        :keyword (recur (conj stack (keyword value)) env remaining)
+        :str (recur (conj stack (read-string value)) env remaining)))))
 
 (defn string-to-tokens
   "Parses the string s into tokens."
@@ -193,9 +194,9 @@
                   (let [[s id] (spop s)
                         [test result check] (first (:test (get env id)))]
                     [(conj s (if test
-                               (let [[s2 env] (apply-tokens [() env] (string-to-tokens test))
+                               (let [[s2 env] (apply-tokens () env (string-to-tokens test))
                                      after-test s2
-                                     [s3 env] (apply-tokens [() env] (string-to-tokens result))
+                                     [s3 env] (apply-tokens () env (string-to-tokens result))
                                      ok? (= s2 s3)]
                                  (println test "-->" s2 "expected" s3 ":" (if ok? "PASS" "FAIL"))
                                  ok?)
@@ -209,7 +210,7 @@
                 (let [[s else] (spop s)
                       [s when] (spop s)
                       [s chck] (spop s)]
-                  (apply-tokens [s env] (:quotation (if chck when else)))))}
+                  (apply-tokens s env (:quotation (if chck when else)))))}
     "doc" {:signature "(id -- )"
             :fn (fn [s env]
                   (let [[s id] (spop s)
@@ -241,7 +242,7 @@
     "apply" {:signature "(q -- ?)"
              :fn (fn [s env]
                    (let [[s tokens] (spop s)]
-                     (apply-tokens [s env] (:quotation tokens))))}
+                     (apply-tokens s env (:quotation tokens))))}
     "do"    {:signature "(seq -- seq)"
              :doc "realizes a potential lazy sequence"
              :fn (func1 doall)}
@@ -250,7 +251,7 @@
              :fn (fn [s env]
                    (let [[s f] (spop s)
                          tokens (string-to-tokens (slurp f))]
-                     (apply-tokens [s env] tokens)))}
+                     (apply-tokens s env tokens)))}
     "range" {:signature "(n1 n2 -- seq)"
              :doc "returns a lazy sequence from n1..n2 (note: including both n1 and n2). If n2<n1 the sequence is reversed."
              :fn (func2 (fn [a b]
@@ -281,14 +282,14 @@
                           sequence (seq sequence)]
                       [(conj s
                              (reduce (fn [a b]
-                                       (first (first (apply-tokens [(conj s a b) env] reduce-fn)))) sequence)) env]
+                                       (first (first (apply-tokens (conj s a b) env reduce-fn)))) sequence)) env]
                       ))}
     "map"   {:signature "(seq1 q -- seq2)"
              :fn (fn [s env]
                    (let [[s map-fn] (spop s)
                          [s sequence] (spop s)]
                      [(conj s
-                            (map #(first (first (apply-tokens [(conj s %) env] (:quotation map-fn)))) (seq sequence))) env]
+                            (map #(first (first (apply-tokens (conj s %) env (:quotation map-fn)))) (seq sequence))) env]
                      ))}
     "peek"  {:signature "(a -- a)"
              :fn (fn [s env]
@@ -329,7 +330,7 @@
   (let [lr (make-line-reader)
         ;; env @default-env
         start-tokens (string-to-tokens (str/join " " start-words))
-        initial (apply-tokens [start-stack env] start-tokens)]
+        initial (apply-tokens start-stack env start-tokens)]
     (loop [[stack env] initial]
       ;;(print-stack stack)
       ;; (print-env env)
@@ -337,7 +338,7 @@
             tokens (string-to-tokens r)]
         (if (or (not tokens) (= r "bye"))
           [stack env] ;; return the stack and current env
-          (recur (apply-tokens [stack env] tokens)))))))
+          (recur (apply-tokens stack env tokens)))))))
 
 
 (defn -main [& args]
