@@ -14,7 +14,7 @@ engine.
 Either run this project on its own (see below, "Simple repl") or include
 in your own =project.clj=:
 
-[net.nogui/stacker "0.1.1"]
+    [net.nogui/stacker "0.1.1"]
 
 *** The language
 
@@ -153,13 +153,13 @@ include it into your =project.clj=
 
 [[https://img.shields.io/clojars/v/net.nogui/stacker.svg]]
 
-[[https://clojars.org/net.nogui/stacker]][Clojars]]
+[[https://clojars.org/net.nogui/stacker][Clojars]]
 
-You can extend the environment with your own commands and thus give your
+You can now extend the environment with your own commands and thus give your
 own tools a convenient REPL:
 
-1) extend the @default-env with your own functions (probably)
-2) start with a (probably) empty stack, a simple empty list =()=
+1) TBD: extend the @default-env with your own functions (probably)
+2) start with a (probably) empty stack, a simple empty list =()= in almost all cases.
 3) Repeat until tired: Apply tokens on the [stack env] pair. You can use
    =string-to-tokens= to convert a string to a list of tokens.
 4) Alternatively you can call the provided =repl= on the start-stack and
