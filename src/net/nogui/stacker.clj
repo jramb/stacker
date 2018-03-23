@@ -152,17 +152,20 @@
          :fn (func2 *)}
     "/" {:signature "(n1 n2 -- n3)"
          :fn (func2 /)}
-    ">" {:signature "(n1 n2 -- bool)"
-         :fn (func2 >)}
     "count" {:signature "(seq -- a)"
              :doc "counts the number of elements in the sequence."
-             :test [["2 19 inc inc range count" "20"]]
+             :test [["2 19 inc inc range count" "19 inc"]]
              :quotation (string-to-tokens "[1] map [+] reduce")}
+    ">" {:signature "(n1 n2 -- bool)"
+         :fn (func2 >)}
     ">=" {:signature "(n1 n2 -- bool)"
+          :test [["3 -3 >= [1] [0] if" "1"]]
           :fn (func2 >=)}
     "<=" {:signature "(n1 n2 -- bool)"
+          :test [["-3 -3 <= [1] [0] if" "1"]]
           :fn (func2 <=)}
     "<" {:signature "(n1 n2 -- bool)"
+         :test [["-3 -1 < [1] [0] if" "1"]]
          :fn (func2 <)}
     "=" {:signature "(a b -- bool)"
          :fn (func2 =)}
@@ -198,10 +201,10 @@
                                      after-test s2
                                      [s3 env] (apply-tokens () env (string-to-tokens result))
                                      ok? (= s2 s3)]
-                                 (println test "-->" s2 "expected" s3 ":" (if ok? "PASS" "FAIL"))
+                                 (println (if ok? "PASS" "FAIL") ":" id ":" test "-->" s2 "expected" s3 )
                                  ok?)
                                (do
-                                 (println "No test defined for" id ": SKIP")
+                                 #_(println "SKIP: No test defined for" id)
                                  true))) env]))}
     "if" {:signature "(bool q-true q-false -- ?)"
           :test [["4 5 > [ :yes ] [ :no ] if" ":no"]]
@@ -212,19 +215,19 @@
                       [s chck] (spop s)]
                   (apply-tokens s env (:quotation (if chck when else)))))}
     "doc" {:signature "(id -- )"
-            :fn (fn [s env]
-                  (let [[s id] (spop s)
-                        e (get env id)]
-                    (if e
-                      (do
-                        (println "### " id "--" (or (:signature e) "(? -- ?)"))
-                        (when (:doc e)
-                          (println (:doc e)))
+           :fn (fn [s env]
+                 (let [[s id] (spop s)
+                       e (get env id)]
+                   (if e
+                     (do
+                       (println "### " id "--" (or (:signature e) "(? -- ?)"))
+                       (when (:doc e)
+                         (println (:doc e)))
                         (dorun
                          (for [test (:test e)]
                            (println "Example: " (first test) "-->" (second test)))))
-                      (println "Unknown:" id)))
-                  [s env])}
+                     (println "Unknown:" id)))
+                 [s env])}
     "p" {:signature "(a -- a)"
          :fn (fn [s env]
                (println (peek s))
