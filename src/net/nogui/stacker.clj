@@ -82,7 +82,7 @@
 (def parser
   (instaparse/parser ;; EBNF
    "S = (blank|word|str|keyword|reader|sexp|quotation)*
-    <blank> = #'\\s+'
+    <blank> = <#'\\s+'>
     quotation = <'['> S <']'>
     word = #'[^0-9\\s)\"][^\\s\\]]*'
     str = #'\"([^\\\\\"]|\\\\.)*\"'
