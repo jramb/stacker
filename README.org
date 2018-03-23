@@ -7,6 +7,8 @@ A library designed to implement a stack based concatenated language
 in the style of Factor, including an execution engine and a RE(P)L which easily
 can be enabled for own programs with domain specific functionality.
 
+Why? *Finally a language whose syntax I can remember!*
+
 ** Usage
    :PROPERTIES:
    :CUSTOM_ID: usage
@@ -103,13 +105,17 @@ but for interactive instructing a program what to do this is refreshingly intuit
         57
 
 *** The built-in functions
+  For a complete list of currently defined functions you can execute =env .=.
+  To get a description of a specific word you can do for example this: ="reduce" doc=.
+
+    - . :: pops and prints the top of the stack
     - p :: prints the top of the stack
     - load :: takes a filename as a single parameter. Loads, parses and applies the file to the stack.
     - drop :: drops the top of the stack
     - dup :: duplicates the top of the stack
-    - * :: takes the top two elements of the stack, multiplies them and puts the result back on the stack.
+    - *,/,+,- :: takes the top two elements of the stack, multiplies (divides, etc) them and puts the result back on the stack.
     - swap :: swaps the top two elements on the stack
-    - put ::  stores the second element on the stack in the enviroment using what is on top as the index.
+    - set :: stores the second element on the stack in the enviroment using what is on top as the index.
     - get :: retrieves what is indicated by the top from the env.
     - apply :: pops the top of the stack (it must be a quotation) and appies it to the current stack.
 
@@ -118,8 +124,8 @@ but for interactive instructing a program what to do this is refreshingly intuit
     :CUSTOM_ID: simple-repl
     :END:
 
-Run =lein run= to start a simple repl. (Technically it is not a "REPL", rather a "REL" (no print)
-or a "shell", whatever you prefer.)
+Run =lein run= or =java -jar stacker.jar net.nogui.stacker= to start a repl session.
+Technically it is not a "REPL", rather a "REL" (no automatic (P)rint) or a "shell", whatever you prefer.
 
 Run with parameters (one or many) to start repl and process the commands
 from the parameter.
