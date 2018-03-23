@@ -81,10 +81,11 @@
 
 (def parser
   (instaparse/parser
-   "S = (blank|word|str|keyword|num|quotation)*
+   "S = (blank|word|str|keyword|eval|lisp|quotation)*
     <blank> = <#'\\s+'>
     quotation = <'['> S <']'>
-    num = #'-?[0-9]+\\.?[0-9]*[M]?'
+    eval = (#'-?[0-9]+\\.?[0-9]*[M]?'|'nil')
+    lisp = #'\\([^(]*\\)'
     str = <'\"'> #'[^\"]*' <'\"'>
     keyword = <':'> #'[^\\s\\]]*'
     word = #'[^0-9\\s\"][^\\s\\]]*'
@@ -117,8 +118,10 @@
                         (recur [(conj stack value) env] remaining))))))
         :quotation (let [[_ v] value]
                      (recur [(conj stack {:quotation (rest value)}) env] remaining))
-        :num (let [v (read-string value)]
+        :eval (let [v (read-string value)]
                (recur [(conj stack v) env] remaining))
+        :lisp (let [v (eval (read-string value))]
+                (recur [(conj stack v) env] remaining))
         :keyword (recur [(conj stack (keyword value)) env] remaining)
         :str (recur [(conj stack value) env] remaining)))))
 
