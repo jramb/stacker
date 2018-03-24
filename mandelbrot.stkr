@@ -1,0 +1,31 @@
+; Mandelbrot in Stacker
+
+[:x set dup :x get swap :x get] "dup2" set
+
+; "iterate (cr ci zr zi -- cr ci z2r z2i)" .
+; z -> z² + c
+[[cr ci zr zi] param
+  cr get ci get
+  zr get dup * zi get dup * - cr get +    ; z2r = zr² - zi² + cr
+  zr get zi get 2 * * ci get +            ; z2i = zr*zi*2 + ci
+  ] "iterate" set
+
+; "test inside (zr zi -- bool)" .
+[dup * swap dup * + 4.0 <] "is-inside" set
+
+; "evaluate a point (cr ci max -- n)" .
+[[cr ci :max] param
+   cr get ci get 0.0 0.0 ; add initial z0r z0i
+   1 :i set
+   [iterate dup2 is-inside :i ++ :max get < and] while
+   is-inside ["."] ["*"] if] "mandelzahl" set
+
+[[w h max] param
+  1 h get range [2.0 h get / * 1.0 swap -] map
+  [1 w get range [3.0 w get / * -2.0 +] map
+    [swap max get mandelzahl] map nil join .] map do
+    drop ; the last sequence
+] "mandelbrot" set
+
+; mandelzahl: (cr ci max -- res)
+clear 80 30 500 mandelbrot

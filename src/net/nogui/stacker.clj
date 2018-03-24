@@ -89,7 +89,7 @@
 
 ;; All stacker functions take a stack and an env and return a stack and an env
 (defn safe-drop [s env]
-  [(if (peek s) (pop s) s) env])
+  [(if (empty? s) s (pop s)) env])
 
 (defn safe-print [stack-item]
   ;; FIXME: make this better
@@ -217,9 +217,9 @@
                    ["1 8 range nil join"  " \"12345678\" "]]
             :fn (func2 (fn [seq s]
                          (str/join s seq)))}
-    "n-params" {:signature "(n -- )"
+    "n-param" {:signature "(n -- )"
               :doc "takes the n next items from the stack and converts them into environment variables, :a, :b, ..."
-              :test [["10 20 30 3 n-params :c get :a get +" "40"]]
+              :test [["10 20 30 3 n-param :c get :a get +" "40"]]
               :fn (fn [s env]
                     (let [[s n] (spop s)]
                       (if (<= 1 n 26)
@@ -231,10 +231,10 @@
                         (do
                           (println "*** number of params should be 1 <= n <= 26")
                           [s env]))))}
-    "params" {:signature "([a b...] -- )"
+    "param" {:signature "([a b...] -- )"
               :doc "takes the linear quotation (must only contain ids) from the stack and saves the corresponding stack items."
-              :test [["10 20 30 [:a _ :c] params :c get :a get +" "40"]
-                     ["990 10 [:x] params :x get +" "1000"]]
+              :test [["10 20 30 [:a _ :c] param :c get :a get +" "40"]
+                     ["990 10 [:x] param :x get +" "1000"]]
               :fn (fn [s env]
                     (let [[s q] (spop s)]
                       (loop [s s
