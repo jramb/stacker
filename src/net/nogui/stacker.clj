@@ -16,12 +16,27 @@
     (jline.console.completer StringsCompleter)
     ))
 
-(def prompt "\u001B[32m>\u001B[0m ")
+(def color
+  {:green "\u001B[32m"
+   :blue "\u001B[34m"
+   :cyan "\u001B[36m"
+   :red "\u001B[31m"
+   :purple "\u001B[35m"
+   :white "\u001B[37m"
+   :reset "\u001B[0m"})
+
+(def prompt (str (:green color) "> " (:neutral color)))
 
 (defn spop [s]
   (if (empty? s)
     [s nil]
     [(pop s) (peek s)]))
+
+;; (drop n s) returns a lazy list which makes problems later? FIXME (but this works)
+(defn n-drop [n s]
+  (if (or (<= n 0) (empty? s))
+    s
+    (recur (dec n) (pop s))))
 
 (defmacro safe-fn [f & args]
   `(try
@@ -136,6 +151,10 @@
         :keyword (recur (conj stack (keyword value)) env remaining)
         :str (recur (conj stack (read-string value)) env remaining)))))
 
+(defn quotation-to-list [q env]
+  (let [[s env] (apply-tokens () {}#_env q)]
+    s))
+
 (defn string-to-tokens
   "Parses the string s into tokens."
   [str]
@@ -160,10 +179,6 @@
          :fn (func2 *)}
     "/" {:signature "(n1 n2 -- n3)"
          :fn (func2 /)}
-    "count" {:signature "(seq -- a)"
-             :doc "counts the number of elements in the sequence."
-             :test [["2 19 inc inc range count" "19 inc"]]
-             :quotation (string-to-tokens "[1] map [+] reduce")}
     ">" {:signature "(n1 n2 -- bool)"
          :fn (func2 >)}
     ">=" {:signature "(n1 n2 -- bool)"
@@ -199,9 +214,9 @@
             :doc "joins the elements of seq with str in between."
             :fn (func2 (fn [seq s]
                          (str/join s seq)))}
-    "params" {:signature "(a b... n -- )"
+    "n-params" {:signature "(n -- )"
               :doc "takes the n next items from the stack and converts them into environment variables, :a, :b, ..."
-              :test [["10 20 30 3 params :c get :a get +" "40"]]
+              :test [["10 20 30 3 n-params :c get :a get +" "40"]]
               :fn (fn [s env]
                     (let [[s n] (spop s)]
                       (if (<= 1 n 26)
@@ -213,6 +228,38 @@
                         (do
                           (println "*** number of params should be 1 <= n <= 26")
                           [s env]))))}
+    "params" {:signature "([a b...] -- )"
+              :doc "takes the linear quotation (must only contain ids) from the stack and saves the corresponding stack items."
+              :test [["10 20 30 [:a _ :c] params :c get :a get +" "40"]
+                     ["990 10 [:x] params :x get +" "1000"]]
+              :fn (fn [s env]
+                    (let [[s q] (spop s)]
+                      (loop [s s
+                             env env
+                             seq (quotation-to-list (:quotation q) env)]
+                        (if (empty? seq)
+                          [s env]
+                          (let [[s v] (spop s)
+                                id (peek seq)]
+                            (recur s (assoc env id v) #_(if (= id "_")
+                                       env ;; skip this
+                                       (assoc env id v))
+                                   (pop seq)))))))}
+    "grab" {:signature "(a b c n -- [a b c])"
+            :doc "grabs the top n elements and makes them a sequence which is pushed back on the stack."
+            :fn (fn [s env]
+                  (let [[s n] (spop s)]
+                    [(conj (n-drop n s) (reverse (take n s))) env]))}
+    "count-old" {:signature "(seq -- a)"
+                 :doc "counts the number of elements in the sequence."
+                 :test [["2 19 inc inc range count" "20"]]
+                 :quotation (string-to-tokens "[1] map [+] reduce")}
+    "count" {:signature "([a b...] -- [a b c] n)"
+             :doc "counts the sequence on top and puts the count (only) on the stack."
+             :test [["2 19 inc inc range count" "20"]]
+             :fn (fn [s env]
+                   (let [[s sq] (spop s)]
+                     [(conj s (count (seq sq))) env]))}
     "test" {:signature "(id -- bool)"
             :doc "Performs a self-test (if defined) on the word."
             :fn (fn [s env]
@@ -223,7 +270,10 @@
                                   (let [[s2 env] (apply-tokens () env (string-to-tokens test))
                                         [s3 env] (apply-tokens () env (string-to-tokens result))
                                         ok? (= s2 s3)]
-                                    (println (if ok? "PASS" "FAIL") ":" id ":" test "-->" s2 "expected" s3 )
+                                    (println (str (if ok?
+                                                    (str (:green color) "PASS")
+                                                    (str (:red color) "FAIL"))
+                                                  (:reset color)) ":" id ":" test "-->" s2 "expected" s3 )
                                     ok?)
                                   (do
                                     #_(println "SKIP: No test defined for" id)
@@ -305,6 +355,7 @@
              :fn safe-drop}
     "skip"  {:signature "(seq skip-num -- seq)"
              :doc "skips the first skip-num elements from the sequence."
+             :test [["1 20 range 18 skip [+] reduce" "39"]]
              :fn (func2 (fn [sequence skip-num]
                           (drop skip-num (seq sequence))))}
     "take"  {:signature "(seq take-num -- seq)"
