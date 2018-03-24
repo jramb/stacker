@@ -25,7 +25,10 @@
    :white "\u001B[37m"
    :reset "\u001B[0m"})
 
-(def prompt (str (:green color) "> " (:neutral color)))
+(defn in-color [col s]
+  (str (col color) s (:reset color)))
+
+(def prompt (in-color :green "> "))
 
 (defn spop [s]
   (if (empty? s)
@@ -41,7 +44,7 @@
 (defmacro safe-fn [f & args]
   `(try
      (~f ~@args)
-     (catch Exception e# (println (str "Error: " e#)))))
+     (catch Exception e# (println (in-color :red (str "Error: " e#))))))
 
 (defn func2
   "Takes a binary function and returns a stacker-function which expects two
@@ -93,9 +96,6 @@
   (str stack-item))
 
 (defn print-stack [stack]
-  #_(dorun (map-indexed (fn [i val] (print (str i ": "))
-                        (pp/pprint val)) (reverse stack)))
-  #_(pp/pprint stack #_(str/join " " (reverse stack)))
   (println "S:" (str/join ", " (map safe-print (reverse stack)))))
 
 (defn print-env [env]
@@ -103,21 +103,8 @@
 
 (def parser
   (instaparse/parser ;; EBNF
-   "S = (blank|comment|word|str|keyword|reader|sexp|quotation)*
-    <blank> = <#'\\s+'>
-    <comment> = <#';[^\\n]*\\n'>
-    quotation = <'['> S <']'>
-    word = #'[^0-9\\s();\"][^\\s\\]]*'
-    str = #'\"([^\\\\\"]|\\\\.)*\"'
-    <number> = #'-?[0-9]+\\.?[0-9]*([eE][-+]?[0-9]+)?[M]?'
-    sexp = #'\\([^()]*\\)'
-    reader = ( number | 'nil' )
-    keyword = <':'> #'[^\\s\\]]*'
-"))
+   (slurp (clojure.java.io/resource "net/nogui/stacker.bnf"))))
 
-;; (parser "(+ (inc 5) \"hej\" 4 5)");
-(parser "4.5 5 +")
-;; (pp/pprint (parser "dup 3.4 3.4 3.4 dip \"hwody bowdy\" and"));
 (defn apply-tokens
   "Applies the tokens on the [stack env] and returns a new [stack env] when done"
   [stack env tokens]
@@ -173,8 +160,22 @@
                (safe-drop s env))}
     "+" {:signature "(n1 n2 -- n3)"
          :fn (func2 +)}
+    "++" {:signature "(id -- n)"
+          :doc "increments the environment id and returns the new value on the stack."
+          :test [["5 :x set :x ++" "6"]]
+          :fn (fn [s env]
+                (let [[s id] (spop s)
+                      val (inc (or (get env id) 0))]
+                  [(conj s val) (assoc env id val)]))}
     "-" {:signature "(n1 n2 -- n3)"
          :fn (func2 -)}
+    "--" {:signature "(id -- n)"
+          :doc "decrements the environment id and returns the new value on the stack."
+          :test [["5 :x set :x --" "4"]]
+          :fn (fn [s env]
+                (let [[s id] (spop s)
+                      val (dec (or (get env id) 0))]
+                  [(conj s val) (assoc env id val)]))}
     "*" {:signature "(n1 n2 -- n3)"
          :fn (func2 *)}
     "/" {:signature "(n1 n2 -- n3)"
@@ -212,6 +213,8 @@
                      [(conj s {:quotation (string-to-tokens string)}) env]))}
     "join" {:signature "(seq str-delim -- str-joined)"
             :doc "joins the elements of seq with str in between."
+            :test [["1 5 range \", \" join" "\"1, 2, 3, 4, 5\""]
+                   ["1 8 range nil join"  " \"12345678\" "]]
             :fn (func2 (fn [seq s]
                          (str/join s seq)))}
     "n-params" {:signature "(n -- )"
@@ -273,7 +276,9 @@
                                     (println (str (if ok?
                                                     (str (:green color) "PASS")
                                                     (str (:red color) "FAIL"))
-                                                  (:reset color)) ":" id ":" test "-->" s2 "expected" s3 )
+                                                  (:reset color) ":") id "\t" (in-color :cyan test)
+                                             "-->" (in-color (if ok? :green :red) s2)
+                                             (str (when (not ok?) (str "expected" s3))))
                                     ok?)
                                   (do
                                     #_(println "SKIP: No test defined for" id)

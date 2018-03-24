@@ -1,0 +1,10 @@
+S = (blank|comment|word|str|keyword|reader|sexp|quotation)*
+<blank> = <#'\s+'>
+<comment> = <#';[^\n]*\n'>
+quotation = <'['> S <']'>
+word = #'[^0-9\s();\"][^\s\]]*'
+str = #'\"([^\\\"]|\\.)*\"'
+<number> = #'-?[0-9]+\.?[0-9]*([eE][-+]?[0-9]+)?[M]?'
+sexp = #'\([^()]*\)'
+reader = ( number | 'nil' )
+keyword = <':'> #'[^\s\]]*'
