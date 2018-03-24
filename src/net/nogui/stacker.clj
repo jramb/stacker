@@ -19,7 +19,14 @@
 (def prompt "\u001B[32m>\u001B[0m ")
 
 (defn spop [s]
-  [(pop s) (peek s)])
+  (if (empty? s)
+    [s nil]
+    [(pop s) (peek s)]))
+
+(defmacro safe-fn [f & args]
+  `(try
+     (~f ~@args)
+     (catch Exception e# (println (str "Error: " e#)))))
 
 (defn func2
   "Takes a binary function and returns a stacker-function which expects two
@@ -29,7 +36,7 @@
   (fn [s env]
     (let [[s a] (spop s)
           [s b] (spop s)]
-      [(conj s (f b a)) env])))
+      [(conj s (safe-fn f b a)) env])))
 
 (defn func1
   "Takes a unary function and returns a stacker-function which expects one
@@ -38,7 +45,7 @@
   [f]
   (fn [s env]
     (let [[s a] (spop s)]
-      [(conj s (f a)) env])))
+      [(conj s (safe-fn f a)) env])))
 
 (defn func3
   "Takes a ternary function and returns a stacker-function which expects two
@@ -49,7 +56,7 @@
     (let [[s a] (spop s)
           [s b] (spop s)
           [s c] (spop s)]
-      [(conj s (f c b a)) env])))
+      [(conj s (safe-fn f c b a)) env])))
 
 (defn env-neutral-function
   "Takes a function (s->s) and returns a stacker-function which does not change the env."
@@ -119,8 +126,7 @@
                           (println "*** Word not defined:" value "(pushed on stack)")
                           [stack env])
                         (recur (conj stack value) env remaining))))))
-        :quotation (let [[_ v] value]
-                     (recur (conj stack {:quotation (rest value)}) env remaining))
+        :quotation (recur (conj stack {:quotation (rest value)}) env remaining)
         :sexp (let [v (eval (read-string value))]
                 (recur (conj stack (if (fn? v) {:fn v} v)) env remaining))
         :reader (let [v (read-string value)]
@@ -198,7 +204,6 @@
                         [test result check] (first (:test (get env id)))]
                     [(conj s (if test
                                (let [[s2 env] (apply-tokens () env (string-to-tokens test))
-                                     after-test s2
                                      [s3 env] (apply-tokens () env (string-to-tokens result))
                                      ok? (= s2 s3)]
                                  (println (if ok? "PASS" "FAIL") ":" id ":" test "-->" s2 "expected" s3 )

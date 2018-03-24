@@ -1,3 +1,5 @@
+version=0.2.0-SNAPSHOT
+
 repl:
 	lein run
 
@@ -8,7 +10,8 @@ test:
 
 jar:
 	lein uberjar
-	cd target && ln -s stacker-0.2.0-SNAPSHOT-standalone.jar stacker.jar
+	cd target && ln -s stacker-$(version)-standalone.jar stacker.jar
+	cp target/stacker-$(version)-standalone.jar share/stacker.jar
 
 deploy:
 	lein deploy clojars
