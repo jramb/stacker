@@ -88,10 +88,11 @@
 
 (def parser
   (instaparse/parser ;; EBNF
-   "S = (blank|word|str|keyword|reader|sexp|quotation)*
+   "S = (blank|comment|word|str|keyword|reader|sexp|quotation)*
     <blank> = <#'\\s+'>
+    <comment> = <#';[^\\n]*\\n'>
     quotation = <'['> S <']'>
-    word = #'[^0-9\\s)\"][^\\s\\]]*'
+    word = #'[^0-9\\s();\"][^\\s\\]]*'
     str = #'\"([^\\\\\"]|\\\\.)*\"'
     <number> = #'-?[0-9]+\\.?[0-9]*([eE][-+]?[0-9]+)?[M]?'
     sexp = #'\\([^()]*\\)'
@@ -271,6 +272,19 @@
                          [s _] (apply-tokens s env (:quotation tokens))]
                      ;; return the original environment
                      [s env]))}
+    "while" {:signature "(q -- ?)"
+             :doc "applies q on the stack until the top repeatedly. After every iteration take the top and repeat if the top was true."
+             :test [["4 [inc dup 10 <] while" "10"]]
+             :fn (fn [s env]
+                   (let [[s check-fn] (spop s)
+                         check-fn (:quotation check-fn)]
+                     ; the env is reused during while, but reset afterwards
+                     (loop [s s env-while env]
+                       (let [[s env-while] (apply-tokens s env-while check-fn)
+                             [s result] (spop s)]
+                         (if result
+                           (recur s env-while)
+                           [s env])))))}
     "do"    {:signature "(seq -- seq)"
              :doc "realizes a potential lazy sequence"
              :fn (func1 doall)}
