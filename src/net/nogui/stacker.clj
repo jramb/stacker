@@ -198,20 +198,35 @@
             :doc "joins the elements of seq with str in between."
             :fn (func2 (fn [seq s]
                          (str/join s seq)))}
+    "params" {:signature "(a b... n -- )"
+              :doc "takes the n next items from the stack and converts them into environment variables, :a, :b, ..."
+              :test [["10 20 30 3 params :c get :a get +" "40"]]
+              :fn (fn [s env]
+                    (let [[s n] (spop s)]
+                      (if (<= 1 n 26)
+                        (loop [s s i n env env]
+                          (if (> i 0)
+                            (let [[s v] (spop s)]
+                              (recur s (dec i) (assoc env (keyword (str (char (+ i -1 (int \a))))) v)))
+                            [s env]))
+                        (do
+                          (println "*** number of params should be 1 <= n <= 26")
+                          [s env]))))}
     "test" {:signature "(id -- bool)"
             :doc "Performs a self-test (if defined) on the word."
             :fn (fn [s env]
-                  (let [[s id] (spop s)
-                        [test result check] (first (:test (get env id)))]
-                    [(conj s (if test
-                               (let [[s2 env] (apply-tokens () env (string-to-tokens test))
-                                     [s3 env] (apply-tokens () env (string-to-tokens result))
-                                     ok? (= s2 s3)]
-                                 (println (if ok? "PASS" "FAIL") ":" id ":" test "-->" s2 "expected" s3 )
-                                 ok?)
-                               (do
-                                 #_(println "SKIP: No test defined for" id)
-                                 true))) env]))}
+                  (let [[s id] (spop s)]
+                    (dorun
+                     (for [[test result check] (:test (get env id))]
+                       [(conj s (if test
+                                  (let [[s2 env] (apply-tokens () env (string-to-tokens test))
+                                        [s3 env] (apply-tokens () env (string-to-tokens result))
+                                        ok? (= s2 s3)]
+                                    (println (if ok? "PASS" "FAIL") ":" id ":" test "-->" s2 "expected" s3 )
+                                    ok?)
+                                  (do
+                                    #_(println "SKIP: No test defined for" id)
+                                    true))) env]))))}
     "if" {:signature "(bool q-true q-false -- ?)"
           :test [["4 5 > [ :yes ] [ :no ] if" ":no"]]
           :doc "if bool is true, apply q-true, otherwise apply q-false. "
@@ -244,6 +259,8 @@
                    [(conj s (get env id)) env]))}
     "set" {:signature "(a-value id -- )"
            :doc "sets the entry named id to a-value in the env. a-value can be a quotation."
+           :test [["113. :r set 355 :r get /" "3.1415929203539825"]
+                  ["-1 :a set [5 :a set [99 :a set] apply :a get dup *] apply :a get" "25 -1"]]
            :fn (fn [s env]
                  (let [[s id] (spop s)
                        [s v] (spop s)]
