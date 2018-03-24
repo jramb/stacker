@@ -115,10 +115,11 @@
       (condp = kind
         :word (let [w (get env value)]
                 (if-let [f (:fn w)]
+                  ;; built-in functions can modify the environment
                   (let [[stack env] (f stack env)]
                     (recur stack env remaining))
                   (if-let [q (:quotation w)]
-                    (let [[stack env] (apply-tokens stack env q)]
+                    (let [[stack _] (apply-tokens stack env q)]
                       (recur stack env remaining))
                     (do
                       (if (:-strict env)
@@ -249,8 +250,10 @@
                    [s (assoc env id v)]))}
     "apply" {:signature "(q -- ?)"
              :fn (fn [s env]
-                   (let [[s tokens] (spop s)]
-                     (apply-tokens s env (:quotation tokens))))}
+                   (let [[s tokens] (spop s)
+                         [s _] (apply-tokens s env (:quotation tokens))]
+                     ;; return the original environment
+                     [s env]))}
     "do"    {:signature "(seq -- seq)"
              :doc "realizes a potential lazy sequence"
              :fn (func1 doall)}
@@ -259,6 +262,7 @@
              :fn (fn [s env]
                    (let [[s f] (spop s)
                          tokens (string-to-tokens (slurp f))]
+                     ;; load will/can modify the env
                      (apply-tokens s env tokens)))}
     "range" {:signature "(n1 n2 -- seq)"
              :doc "returns a lazy sequence from n1..n2 (note: including both n1 and n2). If n2<n1 the sequence is reversed."
@@ -290,14 +294,17 @@
                           sequence (seq sequence)]
                       [(conj s
                              (reduce (fn [a b]
+                                       ;; will throw away interim envs
                                        (first (first (apply-tokens (conj s a b) env reduce-fn)))) sequence)) env]
                       ))}
     "map"   {:signature "(seq1 q -- seq2)"
              :fn (fn [s env]
                    (let [[s map-fn] (spop s)
+                         map-fn (:quotation map-fn)
                          [s sequence] (spop s)]
                      [(conj s
-                            (map #(first (first (apply-tokens (conj s %) env (:quotation map-fn)))) (seq sequence))) env]
+                            ;; will throw away interim envs
+                            (map #(first (first (apply-tokens (conj s %) env map-fn))) (seq sequence))) env]
                      ))}
     "peek"  {:signature "(a -- a)"
              :fn (fn [s env]
