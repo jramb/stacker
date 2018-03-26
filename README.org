@@ -3,11 +3,14 @@
   :CUSTOM_ID: stacker
   :END:
 
-A library designed to implement a stack based concatenated language
-in the style of Factor, including an execution engine and a RE(P)L which easily
-can be enabled for own programs with domain specific functionality.
+A library designed to implement a compiling stack based concatenated language
+in the style of Factor or Forth, including an execution engine and a RE(P)L which
+you can easily enable for your own programs with domain specific functionality.
 
 Why? *Finally a language whose syntax I can remember!*
+Seriously, apart from that the syntax is quite natural to work with, it is
+a match made in heaven for command line parameters or (even in combination with)
+live interaction with programs.
 
 ** Usage
    :PROPERTIES:
@@ -17,7 +20,7 @@ Why? *Finally a language whose syntax I can remember!*
 Either run this project on its own (see below, "Simple repl") or include
 in your own =project.clj=:
 
-    =[net.nogui/stacker "0.1.1"]=
+    [[https://clojars.org/net.nogui/stacker][https://img.shields.io/clojars/v/net.nogui/stacker.svg]]
 
 *** The language
 
@@ -172,7 +175,7 @@ but for interactive instructing a program what to do this is refreshingly intuit
 
     include it into your =project.clj=
 
-    [[https://clojars.org/net.nogui/stacker][[https://img.shields.io/clojars/v/net.nogui/stacker.svg]]]
+    [[https://clojars.org/net.nogui/stacker][[[https://img.shields.io/clojars/v/net.nogui/stacker.svg]]]]
 
 
     You can now extend the environment with your own commands and thus give your
