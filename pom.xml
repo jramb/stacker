@@ -3,7 +3,7 @@
   <groupId>net.nogui</groupId>
   <artifactId>stacker</artifactId>
   <packaging>jar</packaging>
-  <version>0.2.0-SNAPSHOT</version>
+  <version>0.2.0</version>
   <name>stacker</name>
   <description>Stacker - A stack based language and REPL</description>
   <url>https://github.com/jramb/stacker</url>
@@ -17,7 +17,7 @@
     <url>https://github.com/jramb/stacker</url>
     <connection>scm:git:git://github.com/jramb/stacker.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/jramb/stacker.git</developerConnection>
-    <tag>5016653c87cb6d7cdbd282efc302830f36d9cf0e</tag>
+    <tag>7ed5004e60b10a93521f015c01f3565cb4114fc1</tag>
   </scm>
   <build>
     <sourceDirectory>src</sourceDirectory>
