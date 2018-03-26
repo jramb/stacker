@@ -99,8 +99,8 @@ but for interactive instructing a program what to do this is refreshingly intuit
      If the word definition contains one or several tests, then the tests can be executed:
 
      #+begin_src text
-     > "range" test
-     ... bla bla ...
+     > "reduce" test
+     PASS: reduce     1 10 range [*] reduce --> (3628800)
      #+end_src
 
      Using stacker you can easily *test* all defined words in one go:

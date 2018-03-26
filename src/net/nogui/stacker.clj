@@ -58,12 +58,25 @@
 
 (defn func1
   "Takes a unary function and returns a stacker-function which expects one
-  items on the stack, performs the function on it and pushes the result back on
+  item on the stack, performs the function on it and pushes the result back on
   the stack. In other words: it makes a ( a -- (f a) )"
+  ([f]
+   (fn [s env]
+     (let [[s a] (spop s)]
+       [(conj s (safe-fn f a)) env])))
+  ([env f]
+   (fn [s env]
+     (let [[s a] (spop s)]
+       [(conj s (safe-fn f env a)) env]))))
+
+(defn func1-env
+  "Takes a binary function and returns a stacker-function which expects one
+  item on the stack, performs the function on it (also adds the env) and pushes the result back on
+  the stack. In other words: it makes a ( a -- (f a env) )"
   [f]
   (fn [s env]
     (let [[s a] (spop s)]
-      [(conj s (safe-fn f a)) env])))
+      [(conj s (safe-fn f a env)) env])))
 
 (defn func3
   "Takes a ternary function and returns a stacker-function which expects two
@@ -150,6 +163,22 @@
     (when-let [tokens (rest p)]
       ;;(pp/pprint tokens)
       tokens)))
+
+(defn do-test [id test result check env]
+  (if test
+    (let [[s2 env] (apply-tokens () env (string-to-tokens test))
+          [s3 env] (apply-tokens () env (string-to-tokens result))
+          ok? (= s2 s3)]
+      (println (str (if ok?
+                      (str (:green color) "PASS")
+                      (str (:red color) "FAIL"))
+                    (:reset color) ":") id "\t" (in-color :cyan test)
+               "-->" (in-color (if ok? :green :red) s2)
+               (str (when (not ok?) (str "expected" s3))))
+      ok?)
+    (do
+      #_(println "SKIP: No test defined for" id)
+      true)))
 
 (def default-env
   (atom
@@ -264,25 +293,12 @@
                    (let [[s sq] (spop s)]
                      [(conj s (count (seq sq))) env]))}
     "test" {:signature "(id -- bool)"
-            :doc "Performs a self-test (if defined) on the word."
-            :fn (fn [s env]
-                  (let [[s id] (spop s)]
-                    (dorun
-                     (for [[test result check] (:test (get env id))]
-                       [(conj s (if test
-                                  (let [[s2 env] (apply-tokens () env (string-to-tokens test))
-                                        [s3 env] (apply-tokens () env (string-to-tokens result))
-                                        ok? (= s2 s3)]
-                                    (println (str (if ok?
-                                                    (str (:green color) "PASS")
-                                                    (str (:red color) "FAIL"))
-                                                  (:reset color) ":") id "\t" (in-color :cyan test)
-                                             "-->" (in-color (if ok? :green :red) s2)
-                                             (str (when (not ok?) (str "expected" s3))))
-                                    ok?)
-                                  (do
-                                    #_(println "SKIP: No test defined for" id)
-                                    true))) env]))))}
+            :doc "Performs a self-test (if defined) on the word. Leaves the result of the tests on the stack."
+            :fn (func1-env (fn [id env]
+                         (let [tests (:test (get env id))]
+                           (reduce (fn [a b] (and a b)) true
+                                   (for [[test result check] tests]
+                                     (do-test id test result check env))))))}
     "if" {:signature "(bool q-true q-false -- ?)"
           :test [["4 5 > [ :yes ] [ :no ] if" ":no"]]
           :doc "if bool is true, apply q-true, otherwise apply q-false. "
