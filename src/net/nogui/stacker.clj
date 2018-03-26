@@ -166,9 +166,9 @@
     (f stack env)))
 
 (defn quotation-to-fn [env q]
-  (if-let [tokens (:quotation q)]
-    (compile-tokens env tokens)
-    (:fn q)))
+  (or (:fn q)
+      (if-let [tokens (:quotation q)]
+        (compile-tokens env tokens))))
 
 (defn string-to-tokens
   "Parses the string s into tokens."
@@ -252,15 +252,24 @@
     "dec" {:signature "(n1 -- n2)"
                 :test [[ "4 dec" "3"]]
                 :fn (func1 dec)}
+    "compile" {:signature "(q -- q)"
+               :doc "Compiles the quotation on the top of the stack. Multiple applications are possible, but meaningless"
+               :test [["\"22 7 /\" parse compile apply" "22 7 /"]
+                      ["\"dup *\" parse compile \"sqr\" set 4 sqr" "16"]
+                      ["\"42\" parse compile compile compile apply" "42"]]
+               :fn (func1-env
+                    (fn [q env]
+                      (let [src (:quotation q)]
+                        (if (and src (not (:fn q)))
+                          {:fn (compile-tokens env src) :quotation src}
+                          q))))}
     "parse" {:signature "(str -- q)"
-             :doc "parse and compiles the string str and leaves the result as a quotation on the stack."
-             :test [
-                    ["\"22 7 /\" parse apply" "22 7 /"]
-                    ["\"dup *\" parse \"sqr\" set 4 sqr" "16"]
-                    ]
+             :doc "parses the string str and leaves the result as an (uncompiled) quotation on the stack."
+             :test [["\"22 7 /\" parse apply" "22 7 /"]
+                    ["\"dup *\" parse \"sqr\" set 4 sqr" "16"]]
              :fn (fn [s env]
                    (let [[s string] (spop s)]
-                     [(conj s {:fn (compile-tokens env (string-to-tokens string))}) env]))}
+                     [(conj s {:quotation (string-to-tokens string)}) env]))}
     "join" {:signature "(seq str-delim -- str-joined)"
             :doc "joins the elements of seq with str in between."
             :test [["1 5 range \", \" join" "\"1, 2, 3, 4, 5\""]
@@ -309,8 +318,9 @@
                     [(conj (n-drop n s) (reverse (take n s))) env]))}
     "count-old" {:signature "(seq -- a)"
                  :doc "counts the number of elements in the sequence."
-                 :test [["2 19 inc inc range count" "20"]]
-                 :quotation (string-to-tokens "[1] map [+] reduce")}
+                 :test [["2 19 inc inc range count-old" "20"]]
+                 :quotation (string-to-tokens "[1] map [+] reduce")
+                 }
     "count" {:signature "([a b...] -- [a b c] n)"
              :doc "counts the sequence on top and puts the count (only) on the stack."
              :test [["2 19 inc inc range count" "20"]]
