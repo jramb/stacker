@@ -10,3 +10,4 @@ clear
 langer String mit CR!" stack drop
 "Test 5" .
 "Say \"Hi\" to me!" .
+env [test] map do drop
