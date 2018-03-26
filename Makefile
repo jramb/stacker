@@ -13,6 +13,9 @@ jar:
 	cd target && ln -s stacker-$(version)-standalone.jar stacker.jar
 	cp target/stacker-$(version)-standalone.jar share/stacker.jar
 
+performance:
+	 time -v -o mandelbrot.performance lein run mandelbrot.stkr load q >mandelbrot.performance.txt
+
 deploy:
 	lein deploy clojars
 
