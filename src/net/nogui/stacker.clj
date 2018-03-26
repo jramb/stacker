@@ -243,6 +243,10 @@
                 :fn (func2 (fn [a b] (and a b)))}
          "or" {:signature "(bool-1 bool-2 -- bool-3)"
                :fn (func2 (fn [a b] (or a b)))}
+         "not" {:signature "(a b -- bool)"
+                :doc "negates the top of the stack."
+                :test [["3 4 > not" "2 2 ="]]
+                :fn (func1 not)}
          "clear" {:signature "(? -- )"
                   :doc "Clears the stack completely."
                   :fn (fn [s env] [() env])}
