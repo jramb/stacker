@@ -35,6 +35,14 @@
     [s nil]
     [(pop s) (peek s)]))
 
+(defn top-if [stack condition else]
+  (let [t (peek stack)]
+    (if (condition t) t else)))
+
+(defn exit [s env]
+  (let [t (peek s)]
+    (System/exit (if (number? t) t 0))))
+
 ;; (drop n s) returns a lazy list which makes problems later? FIXME (but this works)
 (defn n-drop [n s]
   (if (or (<= n 0) (empty? s))
@@ -89,17 +97,6 @@
           [s c] (spop s)]
       [(conj s (safe-fn f c b a)) env])))
 
-(defn env-neutral-function
-  "Takes a function (s->s) and returns a stacker-function which does not change the env."
-  [f]
-  (fn [s env]
-    [(f s) env]))
-
-(defn top-if [stack condition else]
-  (let [t (peek stack)]
-    (if (condition t) t else)))
-
-
 ;; All stacker functions take a stack and an env and return a stack and an env
 (defn safe-drop [s env]
   [(if (empty? s) s (pop s)) env])
@@ -118,42 +115,60 @@
   (instaparse/parser ;; EBNF
    (slurp (clojure.java.io/resource "net/nogui/stacker.bnf"))))
 
-(defn apply-tokens
-  "Applies the tokens on the [stack env] and returns a new [stack env] when done"
-  [stack env tokens]
-  ;; (pp/pprint tokens)
-  ;; (pp/pprint stack)
+(declare quotation-to-fn) ; mutual with compile-tokens
+
+(defn compile-tokens
+  "compiles tokens and returns a function which takes a stack and an env and returns a
+  possible update [stack env] pair."
+  [env tokens]
+  ;; (println "compiling" tokens (empty? tokens))
   (if (empty? tokens)
-    [stack env] ;; return what is left
+    (fn [s e] [s e]) ;; identity
     (let [[kind value]  (first tokens)
           remaining     (rest tokens)]
       ;; (println "kind " kind " value " value " type" (type value))
       (condp = kind
         :word (let [w (get env value)]
-                (if-let [f (:fn w)]
-                  ;; built-in functions can modify the environment
-                  (let [[stack env] (f stack env)]
-                    (recur stack env remaining))
-                  (if-let [q (:quotation w)]
-                    (let [[stack _] (apply-tokens stack env q)]
-                      (recur stack env remaining))
-                    (do
-                      (if (:-strict env)
-                        (do
-                          (println "*** Word not defined:" value "(pushed on stack)")
-                          [stack env])
-                        (recur (conj stack value) env remaining))))))
-        :quotation (recur (conj stack {:quotation (rest value)}) env remaining)
-        :sexp (let [v (eval (read-string value))]
-                (recur (conj stack (if (fn? v) {:fn v} v)) env remaining))
+                (if-let [f (quotation-to-fn env w)]
+                  (if (:mod-env w)
+                    ;; function can modify the environment
+                    (fn [s e]
+                      (let [[s e] (f s e)]
+                        ((compile-tokens e remaining) s e)))
+                    ;; function should not modify the environment
+                    (fn [s e]
+                      (let [[s _] (f s e)]
+                        ((compile-tokens e remaining) s e))))
+                  ;; else unknown word
+                  (do
+                    (if (:-strict env)
+                      (do
+                        (println "*** Word not defined:" value)
+                        (fn [s e] [s e]))
+                      ;; else push value on stack
+                      (fn [s e] ((compile-tokens env remaining) (conj s value) e))))))
+        :quotation (let [q (rest value) ; value = [:S [:word ..] []...]
+                         v {:fn (compile-tokens env q)}]
+                     (fn [s e] ((compile-tokens env remaining) (conj s v) e)))
+        :sexp (let [v (eval (read-string value))
+                    v (if (fn? v) {:fn v} v)]
+                (fn [s e] ((compile-tokens env remaining) (conj s v) e)))
         :reader (let [v (read-string value)]
-                  (recur (conj stack v) env remaining))
-        :keyword (recur (conj stack (keyword value)) env remaining)
-        :str (recur (conj stack (read-string value)) env remaining)))))
+                  (fn [s e] ((compile-tokens env remaining) (conj s v) e)))
+        :keyword (let [v (keyword value)]
+                   (fn [s e] ((compile-tokens env remaining) (conj s v) e)))
+        :str (let [v (read-string value)]
+               (fn [s e] ((compile-tokens env remaining) (conj s v) e)))))))
 
-(defn quotation-to-list [q env]
-  (let [[s env] (apply-tokens () {}#_env q)]
-    s))
+(defn apply-tokens
+  [stack env tokens]
+  (let [f (compile-tokens env tokens)]
+    (f stack env)))
+
+(defn quotation-to-fn [env q]
+  (if-let [tokens (:quotation q)]
+    (compile-tokens env tokens)
+    (:fn q)))
 
 (defn string-to-tokens
   "Parses the string s into tokens."
@@ -174,15 +189,15 @@
                       (str (:red color) "FAIL"))
                     (:reset color) ":") id "\t" (in-color :cyan test)
                "-->" (in-color (if ok? :green :red) s2)
-               (str (when (not ok?) (str "expected" s3))))
+               (str (when (not ok?) (str "expected " (in-color :green s3)))))
       ok?)
     (do
       #_(println "SKIP: No test defined for" id)
       true)))
 
 (def default-env
-  (atom
-   {"." {:signature "(a -- )"
+  (atom {
+   "." {:signature "(a -- )"
          :doc "Pops the top of the stack and displays it."
          :fn (fn [s env]
                (println (peek s))
@@ -192,6 +207,7 @@
     "++" {:signature "(id -- n)"
           :doc "increments the environment id and returns the new value on the stack."
           :test [["5 :x set :x ++" "6"]]
+          :mod-env true
           :fn (fn [s env]
                 (let [[s id] (spop s)
                       val (inc (or (get env id) 0))]
@@ -201,6 +217,7 @@
     "--" {:signature "(id -- n)"
           :doc "decrements the environment id and returns the new value on the stack."
           :test [["5 :x set :x --" "4"]]
+          :mod-env true
           :fn (fn [s env]
                 (let [[s id] (spop s)
                       val (dec (or (get env id) 0))]
@@ -233,13 +250,17 @@
            :test [["4 inc" "5"]]
            :fn (func1 inc)}
     "dec" {:signature "(n1 -- n2)"
-           :test [[ "4 dec" "3"]]
-           :fn (func1 dec)}
+                :test [[ "4 dec" "3"]]
+                :fn (func1 dec)}
     "parse" {:signature "(str -- q)"
-             :doc "parses the string str and leaves the result as a quotation on the stack."
+             :doc "parse and compiles the string str and leaves the result as a quotation on the stack."
+             :test [
+                    ["\"22 7 /\" parse apply" "22 7 /"]
+                    ["\"dup *\" parse \"sqr\" set 4 sqr" "16"]
+                    ]
              :fn (fn [s env]
                    (let [[s string] (spop s)]
-                     [(conj s {:quotation (string-to-tokens string)}) env]))}
+                     [(conj s {:fn (compile-tokens env (string-to-tokens string))}) env]))}
     "join" {:signature "(seq str-delim -- str-joined)"
             :doc "joins the elements of seq with str in between."
             :test [["1 5 range \", \" join" "\"1, 2, 3, 4, 5\""]
@@ -249,6 +270,7 @@
     "n-param" {:signature "(n -- )"
               :doc "takes the n next items from the stack and converts them into environment variables, :a, :b, ..."
               :test [["10 20 30 3 n-param :c get :a get +" "40"]]
+              :mod-env true
               :fn (fn [s env]
                     (let [[s n] (spop s)]
                       (if (<= 1 n 26)
@@ -264,11 +286,14 @@
               :doc "takes the linear quotation (must only contain ids) from the stack and saves the corresponding stack items."
               :test [["10 20 30 [:a _ :c] param :c get :a get +" "40"]
                      ["990 10 [:x] param :x get +" "1000"]]
+              :mod-env true
               :fn (fn [s env]
-                    (let [[s q] (spop s)]
+                    (let [[s q] (spop s)
+                          param-fn (quotation-to-fn env q)
+                          [param-names _] (param-fn () env)]
                       (loop [s s
                              env env
-                             seq (quotation-to-list (:quotation q) env)]
+                             seq param-names]
                         (if (empty? seq)
                           [s env]
                           (let [[s v] (spop s)
@@ -305,8 +330,9 @@
           :fn (fn [s env]
                 (let [[s else] (spop s)
                       [s when] (spop s)
-                      [s chck] (spop s)]
-                  (apply-tokens s env (:quotation (if chck when else)))))}
+                      [s chck] (spop s)
+                      f (quotation-to-fn env (if chck when else))]
+                      (f s env)))}
     "doc" {:signature "(id -- )"
            :fn (fn [s env]
                  (let [[s id] (spop s)
@@ -331,27 +357,29 @@
                    [(conj s (get env id)) env]))}
     "set" {:signature "(a-value id -- )"
            :doc "sets the entry named id to a-value in the env. a-value can be a quotation."
+           :mod-env true
            :test [["113. :r set 355 :r get /" "3.1415929203539825"]
-                  ["-1 :a set [5 :a set [99 :a set] apply :a get dup *] apply :a get" "25 -1"]]
+                  ["-1 :a set [5 :a set [99 :a set] apply :a get dup *] apply :a get" "25 -1"]
+                  ["[[:ok] \"get-ok\" set get-ok] apply" ":ok"]]
            :fn (fn [s env]
                  (let [[s id] (spop s)
                        [s v] (spop s)]
                    [s (assoc env id v)]))}
     "apply" {:signature "(q -- ?)"
+             :test [["-1 4 5 [+] apply" "-1 9"]]
              :fn (fn [s env]
-                   (let [[s tokens] (spop s)
-                         [s _] (apply-tokens s env (:quotation tokens))]
-                     ;; return the original environment
-                     [s env]))}
+                   (let [[s q] (spop s)
+                         f (quotation-to-fn env q)]
+                     (f s env)))}
     "while" {:signature "(q -- ?)"
              :doc "applies q on the stack until the top repeatedly. After every iteration take the top and repeat if the top was true."
              :test [["4 [inc dup 10 <] while" "10"]]
              :fn (fn [s env]
-                   (let [[s check-fn] (spop s)
-                         check-fn (:quotation check-fn)]
+                   (let [[s check-q] (spop s)
+                         f (quotation-to-fn env check-q)]
                      ; the env is reused during while, but reset afterwards
                      (loop [s s env-while env]
-                       (let [[s env-while] (apply-tokens s env-while check-fn)
+                       (let [[s env-while] (f s env-while)
                              [s result] (spop s)]
                          (if result
                            (recur s env-while)
@@ -361,11 +389,13 @@
              :fn (func1 doall)}
     "load"  {:signature "(f -- ?)"
              :doc "loads the filename f, parse and applies the contents."
+             :mod-env true
              :fn (fn [s env]
-                   (let [[s f] (spop s)
-                         tokens (string-to-tokens (slurp f))]
+                   (let [[s file] (spop s)
+                         tokens (string-to-tokens (slurp file))
+                         f (compile-tokens env tokens)]
                      ;; load will/can modify the env
-                     (apply-tokens s env tokens)))}
+                     (f s env)))}
     "range" {:signature "(n1 n2 -- seq)"
              :doc "returns a lazy sequence from n1..n2 (note: including both n1 and n2). If n2<n1 the sequence is reversed."
              :fn (func2 (fn [a b]
@@ -391,23 +421,23 @@
               :doc "reduces the sequence using the quotation q and leaves the result on the stack."
               :test [["1 10 range [*] reduce" "3628800"]]
               :fn (fn [s env]
-                    (let [[s reduce-fn] (spop s)
-                          reduce-fn (:quotation reduce-fn)
+                    (let [[s reduce-q] (spop s)
+                          f (quotation-to-fn env reduce-q)
                           [s sequence] (spop s)
                           sequence (seq sequence)]
                       [(conj s
                              (reduce (fn [a b]
                                        ;; will throw away interim envs
-                                       (first (first (apply-tokens (conj s a b) env reduce-fn)))) sequence)) env]
+                                       (first (first (f (conj s a b) env)))) sequence)) env]
                       ))}
     "map"   {:signature "(seq1 q -- seq2)"
              :fn (fn [s env]
-                   (let [[s map-fn] (spop s)
-                         map-fn (:quotation map-fn)
+                   (let [[s map-q] (spop s)
+                         f (quotation-to-fn env map-q)
                          [s sequence] (spop s)]
                      [(conj s
                             ;; will throw away interim envs
-                            (map #(first (first (apply-tokens (conj s %) env map-fn))) (seq sequence))) env]
+                            (map #(first (first (f (conj s %) env))) (seq sequence))) env]
                      ))}
     "peek"  {:signature "(a -- a)"
              :fn (fn [s env]
@@ -426,14 +456,16 @@
              :fn (fn [s env]
                    [(conj s (sort (map str (keys env)))) env])}
     "exit"  {:signature "( -- )"
-             :fn (fn [s env] (System/exit (top-if s number? 0)))}
+             :fn exit}
     "q"     {:signature "( -- )"
-             :fn (fn [s env] (System/exit (top-if s number? 0)))}
+             :fn exit}
     "swap"  {:signature "(a b -- b a)"
-             :fn (fn [s env] (let [[a b & r] s]
-                              (if (>= (count s) 2)
-                                [(conj (conj r a) b) env]
-                                [s env])))}}))
+             :fn (fn [s env]
+                   (let [[a b & r] s]
+                     (if (>= (count s) 2)
+                       [(conj (conj r a) b) env]
+                       [s env])))}
+    }))
 
 
 
