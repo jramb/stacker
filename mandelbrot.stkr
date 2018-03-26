@@ -17,7 +17,7 @@
 [[cr ci :max] param
    cr get ci get 0.0 0.0 ; add initial z0r z0i
    1 :i set
-   [iterate dup2 is-inside :i ++ :max get < and] while
+   [iterate] [dup2 is-inside :i ++ :max get < and] while
    is-inside ["."] ["*"] if] "mandelzahl" set
 
 [[w h max] param

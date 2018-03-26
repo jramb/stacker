@@ -71,27 +71,77 @@ but for interactive instructing a program what to do this is refreshingly intuit
     - Strings: ="Hello, world"=, ="Hi"=
     - Words (commands): =p=, =*=, =/=, =dup=, =drop=, ...
     - Keywords: =:myvar=, =:hi-there=, ...
-    - Quotations: =[ 4 5 *]=, =[ * ]=, ...
-    - Lisp: =(+ 4 5 7)= (s-expressions are evaluated)
+    - Quotations: =[4 5 *]=, =[*]=, ...
+    - Lisp: =(+ 4 5 7)= (s-expressions are evaluated [*WIP*])
 
     Everything is applied to the stack. Numbers and Strings are pushed on top of the stack.
-    Words can affect the stack. Quotations are not executed immediately, but pushed on the
-    stack as a single object (they can be executed then using the =apply= word.
+    Words can and usually do affect the stack. Quotations are not executed immediately, but pushed on the
+    stack as a single object (they can be handled like values and be stored in the
+    environment or executed directly using the =apply= word).
 
     NOTE: Pushing an *unknown* word leaves the word as a string on on the stack.
     The alternative is to always use quotes ("....."), which always renders as a string.
     This is very much a convenience feature, which will help you more often than it
     bites you. (You can switch this off by this: =1 :-strict set=)
 
+**** Quotations
+     The meaning of quotations is to combine several words and values to a unit,
+     which can be stored and/or executed later. Quotation expressions are (usually)
+     compiled, but that need not be of concern, the effect should be transparent,
+     apart from the execution speed.
 
-    You can load a file containing stacker input using the =load= word. For example:
+     Quotations are used for =if= statements, =while= and other things which
+     conditionally or repeatedly perform something on the stack.
 
+     For example this expression
 
      #+begin_src text
-       > test1.stkr load
+       > 3 4 > ["this is true"] ["this is false"] if .
      #+end_src
 
-**** COMMENT Word documentation
+     will push =3= and =4= on the stack, perform the =>= larger than comparison
+     (which removes both numbers and leaves a boolean on the stack).
+     The following two quotations are only stored, but not executed. =if=
+     will inspect the third element (which is boolean) and /either/ apply the
+     true-quotation or the false-quotation. Here the final =.= prints the result.
+
+     Another example is =while=
+
+     #+begin_src text
+       > 3 [inc] [dup dup * 100000 <] while .
+       317
+     #+end_src
+
+     Here the top of the stack is squared, until the square is greater of equal 100000.
+
+     Note that the while test-quotation is executed at least once. The boolean result is
+     removed during the check, but otherwise the the stack is used as it is.
+     As long as the test-quotation returns true, the body-quotation is applied repeatedly.
+     All side effects of the while-quotations  are left on the stack (apart from the final
+     boolean).
+
+     The above example while-quotation increases the top-number in the body. The test makes
+     three copies (the lowest is used as a result or as input for the next iteration).
+     The other two copies are used to calculate the square and to check if it still is
+     lower than =100000=.
+
+
+**** Loading programs
+    You can load a file containing stacker input using the =load= word. For example:
+
+     #+begin_src text
+       > mandelbrot.stkr load
+     #+end_src
+
+     or from the command line
+
+     #+begin_src text
+       $ java -jar stacker.jar mandelbrot.stkr load
+     #+end_src
+
+     (here you can see why allowing quotes to be left out is a fine thing!)
+
+**** Built-in word documentation
      #+begin_src text
        > "range" doc
        ###  range -- (n1 n2 -- seq)
@@ -115,26 +165,42 @@ but for interactive instructing a program what to do this is refreshingly intuit
 **** New words
      You can store quotations in the environment, they can then be called as any other word:
 
+     To put the name of a word on the stack you need to put it as a string, using quotes.
      #+begin_src text
-       > [3 *] "tripple" set
-       > 19 tripple p
+       > [3 *] "triple" set
+       > 19 triple .
        57
      #+end_src
 
+     Note that the definition uses *quotes* to protect the word (which possibly might already be
+     defined) during definition from execution! Later, when you actually want to *use* the word
+     you omit the quotes, as in the example above.
+
+     Stacker interprets an undefined word as a string, which is helpful when passing
+     things from the command line, when refering to files, etc. Of course this feature
+     bites you in the butt sometimes, but I think that is worth it. (see also =:-strict= if
+     you disagree.)
+
 *** The built-in functions
     For a complete list of currently defined functions you can execute =env .=.
-    To get a description of a specific word you can do for example this: ="reduce" doc=.
+    To get a description of a specific word, including examples, you can do for example this: ="reduce" doc=.
+
+    Here are some examples:
 
     - . :: pops and prints the top of the stack
     - p :: prints the top of the stack
     - load :: takes a filename as a single parameter. Loads, parses and applies the file to the stack.
     - drop :: drops the top of the stack
     - dup :: duplicates the top of the stack
-    - *,/,+,- :: takes the top two elements of the stack, multiplies (divides, etc) them and puts the result back on the stack.
+    - *,/,+,- :: takes the top two elements of the stack, performs the corresponding function on them and puts the result back on the stack.
     - swap :: swaps the top two elements on the stack
     - set :: stores the second element on the stack in the enviroment using what is on top as the index.
     - get :: retrieves what is indicated by the top from the env.
-    - apply :: pops the top of the stack (it must be a quotation) and appies it to the current stack.
+    - apply :: pops the top of the stack (it must be a quotation) and applies it to the current stack.
+    - parse :: parses the top of the stack (a string)
+
+    There are a lot more predefined word.
+    To get a description of *all* words you can do for example this: =env [doc] map do=!
 
 *** Simple repl
     :PROPERTIES:
@@ -173,20 +239,22 @@ but for interactive instructing a program what to do this is refreshingly intuit
     :CUSTOM_ID: your-own-programs
     :END:
 
-    include it into your =project.clj=
+    **This section needs more explanation**
 
-    [[https://clojars.org/net.nogui/stacker][[[https://img.shields.io/clojars/v/net.nogui/stacker.svg]]]]
+    To start with, include the library into your =project.clj=
+
+    [[https://clojars.org/net.nogui/stacker][https://img.shields.io/clojars/v/net.nogui/stacker.svg]]
 
 
     You can now extend the environment with your own commands and thus give your
     own tools a convenient REPL:)
 
-    1 TBD: extend the @default-env with your own functions (probably)
-2) start with a (probably) empty stack, a simple empty list =()= in almost all cases.
-3) Repeat until tired: Apply tokens on the [stack env] pair. You can use
-   =string-to-tokens= to convert a string to a list of tokens.
-4) Alternatively you can call the provided =repl= on the start-stack and
-   env, which starts an interactive repl for you.
+    1) TBD: extend the @default-env with your own functions (probably)
+    2) start with a (probably) empty stack, a simple empty list =()= in almost all cases.
+    3) Repeat until tired: Apply tokens on the [stack env] pair. You can use
+      =string-to-tokens= to convert a string to a list of tokens.
+    4) Alternatively you can call the provided =repl= on the start-stack and
+      env, which starts an interactive repl for you.
 
 ** License
    :PROPERTIES:
