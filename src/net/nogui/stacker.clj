@@ -97,6 +97,7 @@
           [s c] (spop s)]
       [(conj s (safe-fn f c b a)) env])))
 
+
 ;; All stacker functions take a stack and an env and return a stack and an env
 (defn safe-drop [s env]
   [(if (empty? s) s (pop s)) env])
@@ -198,13 +199,16 @@
 (def default-env
   (atom {
          "." {:signature "(a -- )"
+              :takes 1 :leaves 0
               :doc "Pops the top of the stack and displays it."
               :fn (fn [s env]
                     (println (peek s))
                     (safe-drop s env))}
          "+" {:signature "(n1 n2 -- n3)"
+              :takes 2 :leaves 1
               :fn (func2 +)}
          "++" {:signature "(id -- n)"
+               :takes 1 :leaves 1
                :doc "increments the environment id and returns the new value on the stack."
                :test [["5 :x set :x ++" "6"]]
                :mod-env true
@@ -213,8 +217,10 @@
                            val (inc (or (get env id) 0))]
                        [(conj s val) (assoc env id val)]))}
          "-" {:signature "(n1 n2 -- n3)"
+              :takes 2 :leaves 1
               :fn (func2 -)}
          "--" {:signature "(id -- n)"
+               :takes 1 :leaves 1
                :doc "decrements the environment id and returns the new value on the stack."
                :test [["5 :x set :x --" "4"]]
                :mod-env true
@@ -225,6 +231,7 @@
          "*" {:signature "(n1 n2 -- n3)"
               :fn (func2 *)}
          "/" {:signature "(n1 n2 -- n3)"
+              :takes 2 :leaves 1
               :fn (func2 /)}
          ">" {:signature "(n1 n2 -- bool)"
               :fn (func2 >)}
@@ -240,12 +247,21 @@
          "=" {:signature "(a b -- bool)"
               :fn (func2 =)}
          "and" {:signature "(bool-1 bool-2 -- bool-3)"
+                :test [["true true and" "true"]
+                       ["true false and" "false"]
+                       ["false true and" "false"]
+                       ["false false and" "false"]]
                 :fn (func2 (fn [a b] (and a b)))}
          "or" {:signature "(bool-1 bool-2 -- bool-3)"
+               :test [["true true or" "true"]
+                      ["true false or" "true"]
+                      ["false true or" "true"]
+                      ["false false or" "false"]]
                :fn (func2 (fn [a b] (or a b)))}
          "not" {:signature "(a b -- bool)"
                 :doc "negates the top of the stack."
-                :test [["3 4 > not" "2 2 ="]]
+                :test [["false not" "true"]
+                       ["true not" "false"]]
                 :fn (func1 not)}
          "clear" {:signature "(? -- )"
                   :doc "Clears the stack completely."
@@ -523,6 +539,26 @@
 
 (defn feed-engine-seq [engine args]
   (feed-engine engine (str/join " " args)))
+
+(defn feed-engine-multi [engine & args]
+  (doseq [s args]
+    (feed-engine engine s)))
+
+(defn push-stack [engine val]
+  (send engine (fn [[stack env] v]
+                 [(conj stack v) env]) val))
+
+(defn get-stack [engine]
+  (await engine)
+  (let [[s _] @engine]
+    s))
+
+(defn peek-stack [engine]
+  (await engine)
+  (let [[s _] @engine]
+    (if (empty? s)
+      nil
+      (peek s))))
 
 (defn repl [engine]
   (let [lr (make-line-reader)]
