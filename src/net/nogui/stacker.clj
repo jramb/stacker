@@ -509,26 +509,32 @@
     (.addCompleter cr (FileNameCompleter.))
     cr))
 
-(defn repl [start-stack env start-words]
-  (let [lr (make-line-reader)
-        ;; env @default-env
-        start-tokens (string-to-tokens (str/join " " start-words))
-        initial (apply-tokens start-stack env start-tokens)]
-    (loop [[stack env] initial]
-      ;;(print-stack stack)
-      ;; (print-env env)
-      (let [r (.readLine lr prompt)
-            tokens (string-to-tokens r)]
-        (if (or (not tokens) (= r "bye"))
-          [stack env] ;; return the stack and current env
-          (recur (apply-tokens stack env tokens)))))))
+(defn make-engine [stack env]
+  (agent [stack env]))
 
+(defn perform [[stack env] str]
+  (let [tokens (string-to-tokens str)]
+    (apply-tokens stack env tokens)))
+
+(defn feed-engine [engine str]
+  (send engine perform str))
+
+(defn repl [engine]
+  (let [lr (make-line-reader)]
+    (loop []
+      (let [r (.readLine lr prompt)]
+        (when (not= r "bye")
+          (feed-engine engine r)
+          (await engine)
+          (recur))))
+    engine))
 
 (defn -main [& args]
-  #_(when (not (nil? args))
-    (println "args: " args))
-  (let [[s env] (repl () @default-env args)
-        top (first s)]
-    (when (number? top)
-      (System/exit top))))
-
+  (let [engine (make-engine () @default-env)]
+    (feed-engine engine (str/join " " args))
+    (await engine)
+    (repl engine)
+    (let [[s _] @engine
+          top (first s)]
+      (when (number? top)
+        (System/exit top)))))
