@@ -17,7 +17,7 @@
     <url>https://github.com/jramb/stacker</url>
     <connection>scm:git:git://github.com/jramb/stacker.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/jramb/stacker.git</developerConnection>
-    <tag>f992a07b43f2fe53643c53d29e402cc46b9dd9cb</tag>
+    <tag>7a3e2d16b38505a8bbee3505ed3e27cf8825d146</tag>
   </scm>
   <build>
     <sourceDirectory>src</sourceDirectory>
