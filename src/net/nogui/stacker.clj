@@ -554,11 +554,17 @@
     s))
 
 (defn peek-stack [engine]
-  (await engine)
-  (let [[s _] @engine]
+  (let [s (get-stack engine)]
     (if (empty? s)
       nil
       (peek s))))
+
+(defn engine-set-word [engine index word-def]
+  (send engine
+        (fn [[stack env] id v]
+          [stack (assoc env id v) env])
+        index word-def)
+  (await engine))
 
 (defn repl [engine]
   (let [lr (make-line-reader)]

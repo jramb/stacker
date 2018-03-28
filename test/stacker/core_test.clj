@@ -51,6 +51,14 @@
         (is (= true (peek-stack engine)) (str "testing " cmd))
         (push-stack engine "drop")))))
 
+(deftest define-words
+  (testing "Define words"
+    (let [engine (make-engine)]
+      (engine-set-word engine "push-dummy"
+                       {:fn (fn [s e] (println "in push-dummy")[(conj s "dummy") e])})
+      (feed-engine engine "push-dummy")
+      (is (= "dummy" (peek-stack engine))))))
+
 (deftest push-pop
   (testing "push-pop"
     (let [test-value 1337
