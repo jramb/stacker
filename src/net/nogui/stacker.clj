@@ -509,8 +509,10 @@
     (.addCompleter cr (FileNameCompleter.))
     cr))
 
-(defn make-engine [stack env]
-  (agent [stack env]))
+(defn make-engine
+  ([]          (make-engine nil nil))
+  ([env]       (make-engine nil env))
+  ([stack env] (agent [(or stack ()) (or env @default-env)])))
 
 (defn perform [[stack env] str]
   (let [tokens (string-to-tokens str)]
@@ -518,6 +520,9 @@
 
 (defn feed-engine [engine str]
   (send engine perform str))
+
+(defn feed-engine-seq [engine args]
+  (feed-engine engine (str/join " " args)))
 
 (defn repl [engine]
   (let [lr (make-line-reader)]
@@ -530,8 +535,8 @@
     engine))
 
 (defn -main [& args]
-  (let [engine (make-engine () @default-env)]
-    (feed-engine engine (str/join " " args))
+  (let [engine (make-engine)]
+    (feed-engine-seq engine args)
     (await engine)
     (repl engine)
     (let [[s _] @engine
