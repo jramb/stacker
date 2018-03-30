@@ -28,4 +28,4 @@
 ] "mandelbrot" set
 
 ; mandelzahl: (cr ci max -- res)
-clear 80 30 500 mandelbrot
+clear 80 30 :depth get 500 or mandelbrot

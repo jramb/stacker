@@ -55,9 +55,17 @@
   (testing "Define words"
     (let [engine (make-engine)]
       (engine-set-word engine "push-dummy"
-                       {:fn (fn [s e] (println "in push-dummy")[(conj s "dummy") e])})
+                       {:fn (fn [s e] [(conj s "dummy") e])})
       (feed-engine engine "push-dummy")
       (is (= "dummy" (peek-stack engine))))))
+
+(deftest performance
+  (testing "Performance"
+    (let [engine (make-engine)]
+      (hide-output
+       (feed-engine engine "20 :depth set mandelbrot.stkr load"))
+      (await engine))
+    (is (= 1 1))))
 
 (deftest push-pop
   (testing "push-pop"
