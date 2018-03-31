@@ -27,14 +27,6 @@
       (feed-engine engine "drop")
       (is (= nil (peek-stack engine)))
       ;;
-      (comment
-        (hide-output
-         (feed-engine engine "env [test] map do")
-         (await engine))
-        (let [v (peek-stack engine)]
-          (is (reduce #(and %1 %2) v) "testing all env"))
-        (feed-engine engine "drop"))
-      ;;
       (feed-engine engine "\"Hej\"")
       (is (= "Hej" (peek-stack engine)))
       (feed-engine engine "drop")
@@ -48,27 +40,36 @@
       (doseq [cmd (peek-stack engine)]
         (hide-output
          (feed-engine-multi engine (str \" cmd \") " test"))
-        (is (= true (peek-stack engine)) (str "testing " cmd))
+        (is (peek-stack engine) (str "testing " cmd))
         (push-stack engine "drop")))))
 
 (deftest define-words
   (testing "Define words"
     (let [engine (make-engine)]
       (engine-set-word engine "push-dummy"
-                       {:sfun (fn [s e] [(conj s "dummy") e])})
+                       {:test [["push-dummy" "\"dummy\""]]
+                        :sfun (fn [s e] [(conj s "dummy") e])})
       (feed-engine engine "push-dummy")
       (is (= "dummy" (peek-stack engine)))
       (engine-set-word engine "push-dummy-2"
                        {:takes 0 :leave 1
+                        :test [["push-dummy-2" "\"dummy-2\""]]
                         :fn (fn [s e] [(conj s "dummy-2") e])})
       (feed-engine engine "push-dummy-2")
       (is (= "dummy-2" (peek-stack engine)))
       (engine-set-word engine "push-dummy-3"
                        {:takes 0 :leave 1
-                        :src "42"
+                        :test [["push-dummy-3" "42"]]
+                        :src "41 inc"
                         })
       (feed-engine engine "push-dummy-3")
       (is (= 42 (peek-stack engine)))
+      ;; now test all words, including these new ones
+      (hide-output
+       (feed-engine engine "env [test] map [and] reduce")
+       (await engine))
+      (is (peek-stack engine) "all tests in env")
+      (feed-engine engine "drop")
       )))
 
 (deftest performance
@@ -84,8 +85,9 @@
     (let [test-value 1337
           engine (make-engine)]
       (push-stack engine test-value)
+      (is (= test-value (peek-stack engine)) "pushed value is on stack")
       ;; (await engine)
       (let [on-stack (peek-stack engine)
             [s _] @engine]
-        (is (= s (list test-value)))
-        (is (= test-value on-stack))))))
+        (is (= s (list test-value)) "stack consists of pushed value only")
+        (is (= test-value on-stack) "value still on stack")))))
