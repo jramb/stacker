@@ -163,7 +163,7 @@
           :word (let [f (fn [s e]
                           (stats-inc value)
                           (if-let [w (get e value)]
-                            (if-let [f (:fn w)] ;; must be a compiled function
+                            (if-let [f (:sfun w)] ;; must be a compiled function
                               (let [x (f s e)]
                                 (if (:mod-env w)
                                   ;; function can modify the environment:
@@ -187,7 +187,7 @@
                            sfuns (compile-tokens q)
                            f (fn [s e] (stats-inc :in-quotation)
                                (apply-sfun-list [s e] sfuns))]
-                       (recur (conj compiled (func0 {:fn f})) remaining))
+                       (recur (conj compiled (func0 {:sfun f})) remaining))
           :sexp (let [v (eval (read-string value))]
                   (if (fn? v) ;; assume it is already a stacker function
                     (recur (conj compiled v) remaining)
@@ -205,7 +205,7 @@
 
 (defn quotation-to-fn [q] ;; TODO: rename sfuns-to-fn
   (stats-inc :quotation-to-fn)
-  (:fn q))
+  (:sfun q))
 
 (defn string-to-tokens
   "Parses the string s into tokens."
@@ -224,9 +224,22 @@
       (apply-sfun-list [s e] sfuns))))
 
 (defn compile-quotation [q]
-  (if-let [src (:src q)]
-    (assoc q :fn (compile-string-to-sfun src))
+  (if-not (:sfun q) ;; we need to prepare this
+    (if-let [fn-def (:fn q)]
+      (let [signature (keyword (str "<" (:takes q) ">" (:leaves q)))
+            f (condp = signature
+                :<2>1 (func2 fn-def)
+                :<3>1 (func3 fn-def)
+                :<1>1 (func1 fn-def)
+                :<1>0 (fn [s e] (fn-def (first s)) [(rest s) e])
+                :<0>0 (fn [s e] (fn-def) [s e])
+                :<0>1 (fn [s e] [(conj s (fn-def)) e])
+                fn-def)]
+        (assoc q :sfun f))
+      (if-let [src (:src q)]
+        (assoc q :sfun (compile-string-to-sfun src))))
     q))
+
 
 (defn do-test [id test result check env]
   (if test
@@ -240,104 +253,110 @@
                "-->" (in-color (if ok? :green :red) s2)
                (str (when (not ok?) (str "expected " (in-color :green s3)))))
       ok?)
-    (do
-      #_(println "SKIP: No test defined for" id)
-      true)))
+    true ;; no test is a good test
+    ))
 
 (def default-env
   (atom {
          "." {:signature "(a -- )"
               :takes 1 :leaves 0
+              :test [["5 ." ""]]
               :doc "Pops the top of the stack and displays it."
-              :fn (fn [s env]
-                    (println (peek s))
-                    [(rest s) env])}
+              :fn println ;; (fn [v] (println v))
+              }
          "+" {:signature "(n1 n2 -- n3)"
               :takes 2 :leaves 1
-              :fn (func2 +)}
+              :test [["2 6 +" "8"]]
+              :fn +
+              }
          "++" {:signature "(id -- n)"
                :takes 1 :leaves 1
                :doc "increments the environment id and returns the new value on the stack."
                :test [["5 :x set :x ++" "6"]]
                :mod-env true
-               :fn (fn [s env]
+               :sfun (fn [s env]
                      (let [id (first s) s (rest s)
                            val (inc (or (get env id) 0))]
                        [(conj s val) (assoc env id val)]))}
-         "-" {:signature "(n1 n2 -- n3)"
-              :takes 2 :leaves 1
-              :fn (func2 -)}
          "--" {:signature "(id -- n)"
                :takes 1 :leaves 1
                :doc "decrements the environment id and returns the new value on the stack."
                :test [["5 :x set :x --" "4"]]
                :mod-env true
-               :fn (fn [s env]
+               :sfun (fn [s env]
                      (let [id (first s) s (rest s)
                            val (dec (or (get env id) 0))]
                        [(conj s val) (assoc env id val)]))}
+         "-" {:signature "(n1 n2 -- n3)"
+              :takes 2 :leaves 1
+              :fn -}
          "*" {:signature "(n1 n2 -- n3)"
               :takes 2 :leaves 1
-              :fn (func2 *)}
+              :test [["7 9 *" "63"]]
+              :fn *}
          "/" {:signature "(n1 n2 -- n3)"
               :takes 2 :leaves 1
-              :fn (func2 /)}
+              :test [["10 2 /" "5"]]
+              :fn /}
          ">" {:signature "(n1 n2 -- bool)"
               :takes 2 :leaves 1
-              :fn (func2 >)}
+              :test [["10 5 >" "true"]]
+              :fn >}
          ">=" {:signature "(n1 n2 -- bool)"
                :takes 2 :leaves 1
                :test [["3 -3 >= [1] [0] if" "1"]]
-               :fn (func2 >=)}
+               :fn >=}
          "<=" {:signature "(n1 n2 -- bool)"
                :takes 2 :leaves 1
                :test [["-3 -3 <= [1] [0] if" "1"]]
-               :fn (func2 <=)}
+               :fn <=}
          "<" {:signature "(n1 n2 -- bool)"
               :takes 2 :leaves 1
               :test [["-3 -1 < [1] [0] if" "1"]]
-              :fn (func2 <)}
+              :fn <}
          "=" {:signature "(a b -- bool)"
               :takes 2 :leaves 1
-              :fn (func2 =)}
+              :test [["10 10 =" "true"]
+                     ["9 17 =" "false"]]
+              :fn =}
          "and" {:signature "(bool-1 bool-2 -- bool-3)"
                 :takes 2 :leaves 1
                 :test [["true true and" "true"]
                        ["true false and" "false"]
                        ["false true and" "false"]
                        ["false false and" "false"]]
-                :fn (func2 (fn [a b] (and a b)))}
+                :fn (fn [a b] (and a b))}
          "or" {:signature "(bool-1 bool-2 -- bool-3)"
                :takes 2 :leaves 1
                :test [["true true or" "true"]
                       ["true false or" "true"]
                       ["false true or" "true"]
                       ["false false or" "false"]]
-               :fn (func2 (fn [a b] (or a b)))}
+               :fn (fn [a b] (or a b))}
          "not" {:signature "(bool -- bool)"
                 :takes 1 :leaves 1
                 :doc "negates the top of the stack."
                 :test [["false not" "true"]
                        ["true not" "false"]]
-                :fn (func1 not)}
+                :fn not}
          "clear" {:signature "(? -- )"
                   :doc "Clears the stack completely."
-                  :fn (fn [s env] [() env])}
+                  :sfun (fn [s env] [() env])}
          "inc" {:signature "(n1 -- n2)"
                 :takes 1 :leaves 1
                 :test [["4 inc" "5"]]
-                :fn (func1 inc)}
+                :fn inc}
          "dec" {:signature "(n1 -- n2)"
                 :takes 1 :leaves 1
                 :test [[ "4 dec" "3"]]
-                :fn (func1 dec)}
+                :fn dec}
          "compile" {:signature "(q -- q)"
                     :takes 1 :leaves 1
                     :doc "Compiles the quotation on the top of the stack. Multiple applications are possible, but meaningless"
                     :test [["\"22 7 /\" parse compile apply" "22 7 /"]
                            ["\"dup *\" parse compile \"sqr\" set 4 sqr" "16"]
                            ["\"42\" parse compile compile compile apply" "42"]]
-                    :fn (func1-env
+                    :sfun (func1-env
                          (fn [q env]
                            (compile-quotation q)))}
          "parse" {:signature "(str -- q)"
@@ -345,22 +364,22 @@
                   :doc "parses the string str and leaves the result as a compiled quotation on the stack."
                   :test [["\"22 7 /\" parse apply" "22 7 /"]
                          ["\"dup *\" parse \"sqr\" set 4 sqr" "16"]]
-                  :fn (fn [s env]
-                        (let [strg (first s) s (rest s)]
-                          [(conj s {:src strg :fn (compile-string-to-sfun strg)}) env]))}
+                  :fn (fn [strg]
+                            {:src strg :sfun (compile-string-to-sfun strg)})
+                  }
          "join" {:signature "(seq str-delim -- str-joined)"
                  :takes 2 :leaves 1
                  :doc "joins the elements of seq with str in between."
                  :test [["1 5 range \", \" join" "\"1, 2, 3, 4, 5\""]
                         ["1 8 range nil join"  " \"12345678\" "]]
-                 :fn (func2 (fn [seq s]
-                              (str/join s seq)))}
+                 :fn (fn [seq s]
+                           (str/join s seq))}
          "n-param" {:signature "(n -- )"
                     :takes 1 :leaves 0
                     :doc "takes the n next items from the stack and converts them into environment variables, :a, :b, ..."
                     :test [["10 20 30 3 n-param :c get :a get +" "40"]]
                     :mod-env true
-                    :fn (fn [s env]
+                    :sfun (fn [s env]
                           (let [n (first s) s (rest s)]
                             (if (<= 1 n 26)
                               (loop [s s i n env env]
@@ -378,7 +397,7 @@
                          ["10 20 [a b] param b get a get +" "30"]
                          ["990 10 [:x] param :x get +" "1000"]]
                   :mod-env true
-                  :fn (fn [s env]
+                  :sfun (fn [s env]
                         (let [q (first s) s (rest s)
                               ;; q (assoc q :mod-env true)
                               param-fn (quotation-to-fn q)
@@ -396,44 +415,44 @@
                                        (pop seq)))))))}
          "grab" {:signature "(a b c n -- [a b c])"
                  :leaves 1
+                 :test [["1 2 3 3 grab [+] reduce" "6"]]
                  :doc "grabs the top n elements and makes them a sequence which is pushed back on the stack."
-                 :fn (fn [s env]
+                 :sfun (fn [s env]
                        (let [n (first s) s (rest s)]
                          [(conj (n-drop n s) (reverse (take n s))) env]))}
-         "count-old" (compile-quotation
-                      {:signature "(seq -- a)"
-                       :takes 1 :leaves 1
-                       :doc "counts the number of elements in the sequence."
-                       :test [["2 19 inc inc range count-old" "20"]]
-                       :src "[1] map [+] reduce"
-                       })
+         "count-old" {:signature "(seq -- a)"
+                      :takes 1 :leaves 1
+                      :doc "counts the number of elements in the sequence."
+                      :test [["2 19 inc inc range count-old" "20"]]
+                      :src "[1] map [+] reduce"
+                      }
          "count" {:signature "([a b...] -- n)"
                   :takes 1 :leaves 1
                   :doc "counts the sequence on top and puts the count (only) on the stack."
                   :test [["2 19 inc inc range count" "20"]]
-                  :fn (func1 (fn [sq] (count (seq sq))))
+                  :fn #(count (seq %))
                   }
          "test" {:signature "(id -- bool)"
                  :takes 1 :leaves 1
                  :doc "Performs a self-test (if defined) on the word. Leaves the result of the tests on the stack."
-                 :fn (func1-env (fn [id env]
+                 :sfun (func1-env (fn [id env]
                                   (let [tests (:test (get env id))]
                                     (reduce (fn [a b] (and a b)) true
                                             (for [[test result check] tests]
                                               (do-test id test result check env))))))}
          "if" {:signature "(bool q-true q-false -- ?)"
-               :takes 3
+               :takes 3 :use-env true
                :test [["4 5 > [ :yes ] [ :no ] if" ":no"]]
                :doc "if bool is true, apply q-true, otherwise apply q-false. "
-               :fn (fn [s env]
+               :sfun (fn [s env]
                      (let [else (first s) s (rest s)
                            when (first s) s (rest s)
                            chck (first s) s (rest s)
                            f (quotation-to-fn (if chck when else))]
                        (f s env)))}
          "doc" {:signature "(id -- )"
-                :takes 1 :leaves 0
-                :fn (fn [s env]
+                :takes 1 :leaves 0 :use-env true
+                :sfun (fn [s env]
                       (let [id (first s) s (rest s)
                             e (get env id)]
                         (if e
@@ -448,12 +467,12 @@
                       [s env])}
          "p" {:signature "(a -- a)"
               :takes 1 :leaves 1 :same-value true ;; side effect only
-              :fn (fn [s env]
+              :sfun (fn [s env]
                     (println (first s))
                     [s env])}
          "get" {:signature "(a -- b)"
-                :takes 1 :leaves 1
-                :fn (fn [s env]
+                :takes 1 :leaves 1 :use-env true
+                :sfun (fn [s env]
                       (let [id (first s) s (rest s)]
                         [(conj s (get env id)) env]))}
          "set" {:signature "(a-value id -- )"
@@ -464,22 +483,22 @@
                        ["-1 :a set [5 :a set [99 :a set] apply :a get dup *] apply :a get" "25 -1"]
                        ["[5] a set a [6] \"a\" set a +" "11"]
                        ["[[:ok] \"get-ok\" set get-ok] apply" ":ok"]]
-                :fn (fn [s env]
+                :sfun (fn [s env]
                       (let [id (first s) s (rest s)
                             v (first s) s (rest s)]
                         [s (assoc env id v)]))}
          "apply" {:signature "(q -- ?)"
-                  :takes 1
+                  :takes 1 :use-env true
                   :test [["-1 4 5 [+] apply" "-1 9"]]
-                  :fn (fn [s env]
+                  :sfun (fn [s env]
                         (let [q (first s) s (rest s)
                               f (quotation-to-fn q)]
                           (f s env)))}
          "until" {:signature "(q-body q-test -- ?)"
-                  :takes 2
+                  :takes 2 :use-env true
                   :doc "applies q-body on the stack repeatedly until q-test returns true. "
                   :test [["4 [inc] [dup 10 >=] until" "10"]]
-                  :fn (fn [s env]
+                  :sfun (fn [s env]
                         (let [q-test (first s) s (rest s)
                               f-test (quotation-to-fn q-test)
                               q-body (first s) s (rest s)
@@ -493,10 +512,10 @@
                                   (recur s env-while))
                                 [s env])))))}
          "while" {:signature "(q-body q-test -- ?)"
-                  :takes 2
+                  :takes 2 :env :read
                   :doc "as long as the q-test returns true, apply q-body."
                   :test [["4 [inc] [dup 10 >=] until" "10"]]
-                  :fn (fn [s env]
+                  :sfun (fn [s env]
                         (let [q-test (first s) s (rest s)
                               f-test (quotation-to-fn q-test)
                               q-body (first s) s (rest s)
@@ -511,78 +530,74 @@
                                 [s env])))))}
          "stats" {:signature "( -- )"
                   :takes 0 :leaves 0
-                  :fn (fn [s e]
+                  :fn (fn []
                         (when @stats
                           (let [seconds (/ (double (- (. System (nanoTime)) (get @stats :nano-time-start))) 1000000000.0)]
                             (swap! stats #(dissoc % :nano-time-start))
                             (pp/pprint (sort #(< (second %1) (second %2)) @stats))
-                            (println "Time stats:" seconds "secs")))
-                        [s e])}
+                            (println "Time stats:" seconds "secs"))))}
          "stats-on" {:signature "( -- )"
                      :takes 0 :leaves 0
-                     :fn (fn [s e] (reset! stats {:nano-time-start (. System (nanoTime))}) [s e])}
+                     :fn (fn [] (reset! stats {:nano-time-start (. System (nanoTime))}))}
          "stats-off" {:signature "( -- )"
                       :takes 0 :leaves 0
-                      :fn (fn [s e]
+                      :fn (fn []
                             (println "Time since stats-on:"  (/ (double (- (. System (nanoTime)) (get @stats :nano-time-start))) 1000000000.0) "secs")
-                            (reset! stats nil)
-                            [s e])}
+                            (reset! stats nil))}
          "do"    {:signature "(seq -- seq)"
                   :takes 1 :leaves 1
                   :doc "realizes a potential lazy sequence"
-                  :fn (func1 doall)}
+                  :fn doall}
          "slurp" {:takes 1 :leaves 1
                   :doc "Takes the filename from the stack and reads it as a string. Leaves the string on the stack."
-                  :fn (func1 (fn [file]
-                               (slurp file)))}
+                  :fn slurp}
          "spit"  {:takes 2 :leaves 1
                   :doc "Takes the string and a filename and writes the string to filename."
-                  :fn (func2 (fn [contents file]
-                               (spit file contents)))}
+                  :fn (fn [contents file]
+                            (spit file contents))}
          "split" {:takes 2 :leaves 1
                   :doc "takes a string and a delimiter (re) from the stack and splits the string accordingly."
-                  :fn (func2 str/split)}
+                  :fn str/split}
          "split-lines" {:takes 1 :leaves 1
                         :doc "takes a string and splits it into lines."
-                        :fn (func1 str/split-lines)}
-         "load"  (compile-quotation
-                  {:signature "(f -- ?)"
-                   :doc "loads the filename f, parse and applies the contents."
-                   :mod-env true
-                   :src "slurp parse apply"
-                   })
+                        :fn str/split-lines}
+         "load" {:signature "(f -- ?)"
+                 :mod-env true
+                 :doc "loads the filename f, parse and applies the contents."
+                 :src "slurp parse apply"
+                 }
          "range" {:signature "(n1 n2 -- seq)"
                   :takes 2 :leaves 1
                   :doc "returns a lazy sequence from n1..n2 (note: including both n1 and n2). If n2<n1 the sequence is reversed."
                   :test [["5 3 range [+] reduce" "12"]]
-                  :fn (func2 (fn [a b]
-                               (if (<= a b)
-                                 (range a (inc b))
-                                 (range a (dec b) -1))))}
+                  :fn (fn [a b]
+                            (if (<= a b)
+                              (range a (inc b))
+                              (range a (dec b) -1)))}
          "drop"  {:signature "(a -- )"
                   :takes 1 :leaves 0
-                  :fn (fn [s e] [(rest s) e])}
+                  :sfun (fn [s e] [(rest s) e])}
          "skip"  {:signature "(seq skip-num -- seq)"
                   :takes 2 :leaves 1
                   :doc "skips the first skip-num elements from the sequence."
                   :test [["1 20 range 18 skip [+] reduce" "39"]]
-                  :fn (func2 (fn [sequence skip-num]
-                               (drop skip-num (seq sequence))))}
+                  :fn (fn [sequence skip-num]
+                            (drop skip-num (seq sequence)))}
          "take"  {:signature "(seq num -- seq)"
                   :takes 2 :leaves 1
                   :doc "takes the first num elements from the sequence."
-                  :fn (func2 (fn [sequence take-num]
-                               (take take-num (seq sequence))))}
+                  :fn (fn [sequence take-num]
+                            (take take-num (seq sequence)))}
          "reverse"  {:signature "(seq -- seq)"
                      :takes 1 :leaves 1
+                     :test [["1 3 range reverse" "3 1 range"]]
                      :doc "reverses the sequence."
-                     :fn (func1 (fn [sequence]
-                                  (reverse (seq sequence))))}
+                     :fn #(reverse (seq %))}
          "reduce" {:signature "(seq1 q -- a)"
-                   :takes 1 :leaves 1
+                   :takes 1 :leaves 1 :use-env true
                    :doc "reduces the sequence using the quotation q and leaves the result on the stack."
                    :test [["1 10 range [*] reduce" "3628800"]]
-                   :fn (fn [s env]
+                   :sfun (fn [s env]
                          (let [reduce-q (first s) s (rest s)
                                f (quotation-to-fn reduce-q)
                                sequence (first s) s (rest s)
@@ -592,8 +607,8 @@
                                             ;; will throw away interim envs
                                             (first (first (f (conj s a b) env)))) sequence)) env]))}
          "map"   {:signature "(seq1 q -- seq2)"
-                  :takes 2 :leaves 1
-                  :fn (fn [s env]
+                  :takes 2 :leaves 1 :use-env true
+                  :sfun (fn [s env]
                         (let [map-q (first s) s (rest s)
                               f (quotation-to-fn map-q)
                               sequence (first s) s (rest s)]
@@ -603,7 +618,7 @@
                           ))}
          "peek"  {:signature "(a -- a)"
                   :takes 1 :leaves 1 :same-value true
-                  :fn (fn [s env]
+                  :sfun (fn [s env]
                         (let [v (first s)]
                           (println v "=" (type v)))
                         [s env])}
@@ -611,34 +626,45 @@
                   :takes 1 :leaves 2
                   :test [["7 dup" "7 7"]]
                   :doc "Duplicates the top of the stack."
-                  :fn (fn [s env] [(conj s (first s)) env])}
+                  :sfun (fn [s env] [(conj s (first s)) env])}
          "stack" {:signature "( -- )"
                   :takes 0 :leaves 0
-                  :fn (fn [s env]
+                  :stack :read
+                  :sfun (fn [s env]
                         (print-stack s)
                         [s env])}
          "env"   {:signature "( -- )"
                   :takes 0 :leaves 0
-                  :fn (fn [s env]
+                  :use-env true
+                  :sfun (fn [s env]
                         [(conj s (sort (map str (keys env)))) env])}
          "exit"  {:signature "( -- )"
-                  :takes 0 :leaves 0
-                  :fn exit}
+                  :takes 1 :leaves 0
+                  :sfun exit}
          "q"     {:signature "( -- )"
-                  :takes 0 :leaves 0
-                  :fn exit}
+                  :takes 1 :leaves 0
+                  :sfun exit}
          "swap" {:signature "(a b -- b a)"
                  :takes 2 :leaves 2
                  :test [["1 2 3 swap" "1 3 2"]
                         ["7 swap" "7"]]
-                 :fn (fn [s env]
+                 :sfun (fn [s env]
                        (let [[a b & r] s]
                          (if (>= (count s) 2)
                            [(conj (conj r a) b) env]
                            [s env])))}
          }))
 
+(defn prepare-all [env]
+  "Compiles and prepares all quotations in environment."
+  (loop [ks (keys env) env env]
+    (if (empty? ks)
+      env
+      (let [k (first ks)]
+        (recur (rest ks)
+               (assoc env k (compile-quotation (get env k))))))))
 
+(swap! default-env prepare-all)
 
 (defn make-line-reader []
   (let [cr (ConsoleReader.)]
@@ -678,10 +704,11 @@
   (first (get-stack engine)))
 
 (defn engine-set-word [engine index word-def]
-  (send engine
-        (fn [[stack env] id v]
-          [stack (assoc env id v) env])
-        index word-def)
+  (let [word-def (compile-quotation word-def)]
+    (send engine
+          (fn [[stack env] id v]
+            [stack (assoc env id v) env])
+          index word-def))
   (await engine))
 
 (defn repl [engine]

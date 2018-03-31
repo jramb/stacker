@@ -1,4 +1,5 @@
 .lein-repl-history
+.lein-failures
 target
 /.nrepl-port
 share

@@ -55,9 +55,21 @@
   (testing "Define words"
     (let [engine (make-engine)]
       (engine-set-word engine "push-dummy"
-                       {:fn (fn [s e] [(conj s "dummy") e])})
+                       {:sfun (fn [s e] [(conj s "dummy") e])})
       (feed-engine engine "push-dummy")
-      (is (= "dummy" (peek-stack engine))))))
+      (is (= "dummy" (peek-stack engine)))
+      (engine-set-word engine "push-dummy-2"
+                       {:takes 0 :leave 1
+                        :fn (fn [s e] [(conj s "dummy-2") e])})
+      (feed-engine engine "push-dummy-2")
+      (is (= "dummy-2" (peek-stack engine)))
+      (engine-set-word engine "push-dummy-3"
+                       {:takes 0 :leave 1
+                        :src "42"
+                        })
+      (feed-engine engine "push-dummy-3")
+      (is (= 42 (peek-stack engine)))
+      )))
 
 (deftest performance
   (testing "Performance"
