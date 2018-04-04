@@ -139,7 +139,7 @@
 
 (defn apply-sfun-list
   [stack-env sfuns]
-  ;; (stats-inc :apply-sfun-list)
+  (stats-inc :apply-sfun-list)
   (if (empty? sfuns)
     stack-env
     (let [[stack env] stack-env]
@@ -185,7 +185,8 @@
                   (recur (conj compiled f) remaining))
           :quotation (let [q (rest value) ; value = [:S [:word ..] []...]
                            sfuns (compile-tokens q)
-                           f (fn [s e] (stats-inc :in-quotation)
+                           f (fn [s e]
+                               (stats-inc :in-quotation)
                                (apply-sfun-list [s e] sfuns))]
                        (recur (conj compiled (func0 {:sfun f})) remaining))
           :sexp (let [v (eval (read-string value))]
@@ -202,10 +203,6 @@
   (stats-inc :apply-tokens)
   (let [sfuns (compile-tokens tokens)]
     (apply-sfun-list [stack env] sfuns)))
-
-(defn quotation-to-fn [q] ;; TODO: rename sfuns-to-fn
-  (stats-inc :quotation-to-fn)
-  (:sfun q))
 
 (defn string-to-tokens
   "Parses the string s into tokens."
@@ -226,14 +223,22 @@
 (defn compile-quotation [q]
   (if-not (:sfun q) ;; we need to prepare this
     (if-let [fn-def (:fn q)]
-      (let [signature (keyword (str "<" (:takes q) ">" (:leaves q)))
+      (let [signature (keyword (str "<" (:takes q) ">" (:leaves q)
+                                    (when (:mod-env q) "mod")
+                                    (when (:use-env q) "env")
+                                    (when (:invariant q) "inv")))
             f (condp = signature
-                :<2>1 (func2 fn-def)
-                :<3>1 (func3 fn-def)
-                :<1>1 (func1 fn-def)
-                :<1>0 (fn [s e] (fn-def (first s)) [(rest s) e])
-                :<0>0 (fn [s e] (fn-def) [s e])
-                :<0>1 (fn [s e] [(conj s (fn-def)) e])
+                :<2>1     (func2 fn-def)
+                :<3>1     (func3 fn-def)
+                :<1>1     (func1 fn-def)
+                :<1>1env  (func1-env fn-def)
+                :<2>2inv  (fn [s e] (fn-def (first s) (second s)) [s e])
+                :<1>0     (fn [s e] (fn-def (first s)) [(rest s) e])
+                :<1>0env  (fn [s e] (fn-def (first s) e) [(rest s) e])
+                :<1>1inv  (fn [s e] (fn-def (first s)) [s e])
+                :<0>0     (fn [s e] (fn-def) [s e])
+                :<0>0inv  (fn [s e] (fn-def) [s e])
+                :<0>1     (fn [s e] [(conj s (fn-def)) e])
                 fn-def)]
         (assoc q :sfun f))
       (if-let [src (:src q)]
@@ -250,8 +255,8 @@
                       (str (:green color) "PASS")
                       (str (:red color) "FAIL"))
                     (:reset color) ":") id "\t" (in-color :cyan test)
-               "-->" (in-color (if ok? :green :red) s2)
-               (str (when (not ok?) (str "expected " (in-color :green s3)))))
+               "-->" (in-color (if ok? :green :red) (str/join ", " (reverse s2)))
+               (str (when (not ok?) (str "expected " (in-color :green (str/join ", " (reverse s3)))))))
       ok?)
     true ;; no test is a good test
     ))
@@ -400,7 +405,7 @@
                   :sfun (fn [s env]
                         (let [q (first s) s (rest s)
                               ;; q (assoc q :mod-env true)
-                              param-fn (quotation-to-fn q)
+                              param-fn (:sfun q)
                               [param-names _] (param-fn () env)]
                           (loop [s s
                                  env env
@@ -448,13 +453,12 @@
                      (let [else (first s) s (rest s)
                            when (first s) s (rest s)
                            chck (first s) s (rest s)
-                           f (quotation-to-fn (if chck when else))]
+                           f (:sfun (if chck when else))]
                        (f s env)))}
          "doc" {:signature "(id -- )"
                 :takes 1 :leaves 0 :use-env true
-                :sfun (fn [s env]
-                      (let [id (first s) s (rest s)
-                            e (get env id)]
+                :fn (fn [id env]
+                      (let [e (get env id)]
                         (if e
                           (do
                             (println "### " id "--" (or (:signature e) "(? -- ?)"))
@@ -463,18 +467,20 @@
                             (dorun
                              (for [test (:test e)]
                                (println "Example: " (first test) "-->" (second test)))))
-                          (println "Unknown:" id)))
-                      [s env])}
+                          (println "Unknown:" id))))}
          "p" {:signature "(a -- a)"
-              :takes 1 :leaves 1 :same-value true ;; side effect only
-              :sfun (fn [s env]
-                    (println (first s))
-                    [s env])}
+              :takes 1 :leaves 1 :invariant true ;; side effect only
+              :fn println ;;#(println %)
+              }
          "get" {:signature "(a -- b)"
+                :test [["10 :a set 9 :a get :a get" "9 10 10"]]
                 :takes 1 :leaves 1 :use-env true
-                :sfun (fn [s env]
-                      (let [id (first s) s (rest s)]
-                        [(conj s (get env id)) env]))}
+                :fn (fn [id env]
+                      (get env id))
+                ;; :sfun (fn [s env]
+                ;;       (let [id (first s) s (rest s)]
+                ;;         [(conj s (get env id)) env]))
+                }
          "set" {:signature "(a-value id -- )"
                 :takes 2 :leaves 0
                 :doc "sets the entry named id to a-value in the env. a-value can be a quotation."
@@ -492,7 +498,7 @@
                   :test [["-1 4 5 [+] apply" "-1 9"]]
                   :sfun (fn [s env]
                         (let [q (first s) s (rest s)
-                              f (quotation-to-fn q)]
+                              f (:sfun q)]
                           (f s env)))}
          "until" {:signature "(q-body q-test -- ?)"
                   :takes 2 :use-env true
@@ -500,9 +506,9 @@
                   :test [["4 [inc] [dup 10 >=] until" "10"]]
                   :sfun (fn [s env]
                         (let [q-test (first s) s (rest s)
-                              f-test (quotation-to-fn q-test)
+                              f-test (:sfun q-test)
                               q-body (first s) s (rest s)
-                              f-body (quotation-to-fn q-body)]
+                              f-body (:sfun q-body)]
                           ;; the env is reused during while, but reset afterwards
                           (loop [s s env-while env]
                             (let [[s env-while] (f-test s env-while)
@@ -512,14 +518,14 @@
                                   (recur s env-while))
                                 [s env])))))}
          "while" {:signature "(q-body q-test -- ?)"
-                  :takes 2 :env :read
+                  :takes 2
                   :doc "as long as the q-test returns true, apply q-body."
                   :test [["4 [inc] [dup 10 >=] until" "10"]]
                   :sfun (fn [s env]
                         (let [q-test (first s) s (rest s)
-                              f-test (quotation-to-fn q-test)
+                              f-test (:sfun q-test)
                               q-body (first s) s (rest s)
-                              f-body (quotation-to-fn q-body)]
+                              f-body (:sfun q-body)]
                           ;; the env is reused during while, but reset afterwards
                           (loop [s s env-while env]
                             (let [[s env-while] (f-test s env-while)
@@ -546,8 +552,8 @@
                             (reset! stats nil))}
          "do"    {:signature "(seq -- seq)"
                   :takes 1 :leaves 1
-                  :doc "realizes a potential lazy sequence"
-                  :fn doall}
+                  :doc "realizes a lazy sequence"
+                  :fn (fn [s] (doall s))}
          "slurp" {:takes 1 :leaves 1
                   :doc "Takes the filename from the stack and reads it as a string. Leaves the string on the stack."
                   :fn slurp}
@@ -590,7 +596,7 @@
                             (take take-num (seq sequence)))}
          "reverse"  {:signature "(seq -- seq)"
                      :takes 1 :leaves 1
-                     :test [["1 3 range reverse" "3 1 range"]]
+                     :test [["1 3 range reverse" "3 2 1 3 grab"]]
                      :doc "reverses the sequence."
                      :fn #(reverse (seq %))}
          "reduce" {:signature "(seq1 q -- a)"
@@ -599,29 +605,31 @@
                    :test [["1 10 range [*] reduce" "3628800"]]
                    :sfun (fn [s env]
                          (let [reduce-q (first s) s (rest s)
-                               f (quotation-to-fn reduce-q)
+                               f (:sfun reduce-q)
                                sequence (first s) s (rest s)
                                sequence (seq sequence)]
                            [(conj s
                                   (reduce (fn [a b]
                                             ;; will throw away interim envs
                                             (first (first (f (conj s a b) env)))) sequence)) env]))}
+         "nat" {:signature "( -- seq)"
+                :doc "returns a sequence of the natural numbers (infinite): 1 2 3..."
+                :takes 0 :leaves 1
+                :test [["nat 5 take" "1 5 range do"]]
+                :fn (fn [] (iterate inc 1))}
          "map"   {:signature "(seq1 q -- seq2)"
                   :takes 2 :leaves 1 :use-env true
                   :sfun (fn [s env]
                         (let [map-q (first s) s (rest s)
-                              f (quotation-to-fn map-q)
+                              f (:sfun map-q)
                               sequence (first s) s (rest s)]
                           [(conj s
                                  ;; will throw away interim envs
                                  (map #(first (first (f (conj s %) env))) (seq sequence))) env]
                           ))}
          "peek"  {:signature "(a -- a)"
-                  :takes 1 :leaves 1 :same-value true
-                  :sfun (fn [s env]
-                        (let [v (first s)]
-                          (println v "=" (type v)))
-                        [s env])}
+                  :takes 1 :leaves 1 :invariant true
+                  :fn #(println % "=" (type %))}
          "dup"   {:signature "(a -- a a)"
                   :takes 1 :leaves 2
                   :test [["7 dup" "7 7"]]
@@ -645,13 +653,23 @@
                   :takes 1 :leaves 0
                   :sfun exit}
          "swap" {:signature "(a b -- b a)"
+                 :doc "swaps the top two elements on the stack"
                  :takes 2 :leaves 2
                  :test [["1 2 3 swap" "1 3 2"]
                         ["7 swap" "7"]]
                  :sfun (fn [s env]
-                       (let [[a b & r] s]
-                         (if (>= (count s) 2)
-                           [(conj (conj r a) b) env]
+                         (let [[a b & r] s]
+                           (if (>= (count s) 2)
+                             [(conj (conj r a) b) env]
+                             [s env])))}
+         "rot" {:signature "(a b c -- b c a)"
+                :doc "moves the third element (if exists) to the top."
+                 :takes 2 :leaves 2
+                 :test [["1 2 3 rot" "2 3 1"]]
+                 :sfun (fn [s env]
+                       (let [[a b c & r] s]
+                         (if (>= (count s) 3)
+                           [(conj (conj (conj r b) a) c) env]
                            [s env])))}
          }))
 

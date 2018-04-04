@@ -1,6 +1,7 @@
 ; Mandelbrot in Stacker
 
-[:x set dup :x get swap :x get] "dup2" set
+;[:x set dup :x get swap :x get] "dup2" set
+[swap dup rot dup rot swap] "dup2" set
 
 ; "iterate (cr ci zr zi -- cr ci z2r z2i)" .
 ; z -> z² + c
