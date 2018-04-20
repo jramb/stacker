@@ -3,7 +3,7 @@
   <groupId>net.nogui</groupId>
   <artifactId>stacker</artifactId>
   <packaging>jar</packaging>
-  <version>0.3.0-SNAPSHOT</version>
+  <version>0.3.0</version>
   <name>stacker</name>
   <description>Stacker - A stack based language and REPL</description>
   <url>https://github.com/jramb/stacker</url>
@@ -14,10 +14,11 @@
     </license>
   </licenses>
   <scm>
-    <url>https://github.com/jramb/stacker</url>
     <connection>scm:git:git://github.com/jramb/stacker.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/jramb/stacker.git</developerConnection>
-    <tag>7a3e2d16b38505a8bbee3505ed3e27cf8825d146</tag>
+    <tag>84def7d9bb7ca8e345ef0a0bd788b30ef3e954e4
+</tag>
+    <url>https://github.com/jramb/stacker</url>
   </scm>
   <build>
     <sourceDirectory>src</sourceDirectory>
@@ -49,7 +50,7 @@
     </repository>
     <repository>
       <id>clojars</id>
-      <url>https://repo.clojars.org/</url>
+      <url>https://clojars.org/repo/</url>
       <snapshots>
         <enabled>true</enabled>
       </snapshots>

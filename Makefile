@@ -1,4 +1,4 @@
-version=0.3.0
+version=0.3.1-SNAPSHOT
 
 repl:
 	lein run
@@ -18,5 +18,14 @@ performance:
 
 deploy:
 	lein deploy clojars
+
+# alternative way of running things
+clj:
+	clj -m net.nogui.stacker
+
+js:
+	clj -m cljs.main -c net.nogui.stacker -r
+
+# clj -m cljs.main --target node --output-to stacker.js --optimizations simple -c net.nogui.stacker
 
 .PHONY: test
